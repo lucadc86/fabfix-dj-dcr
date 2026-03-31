@@ -54,7 +54,7 @@ export default function Library({ tracks, onAddTracks, onLoadToDeck, onLoadYouTu
           for (let k = 0; k < blockSize; k++) max = Math.max(max, Math.abs(rawData[start + k] || 0));
           waveformData[j] = max;
         }
-        newTracks.push({ id: `${Date.now()}-${i}`, title: file.name.replace(/\.[^/.]+$/, ''), artist: 'Unknown Artist', duration: audioBuffer.duration, bpm: estimateBpm(), file, audioBuffer, waveformData, color: trackColor(tracks.length + newTracks.length) });
+        newTracks.push({ id: `${Date.now()}-${i}`, title: file.name.replace(/\.[^/.]+$/, ''), artist: 'Artista Sconosciuto', duration: audioBuffer.duration, bpm: estimateBpm(), file, audioBuffer, waveformData, color: trackColor(tracks.length + newTracks.length) });
       } catch (e) { console.error('Failed to decode audio:', file.name, e); }
     }
     await audioCtx.close();
@@ -74,13 +74,13 @@ export default function Library({ tracks, onAddTracks, onLoadToDeck, onLoadYouTu
   return (
     <div className={`neon-border rounded-xl rounded-tl-none overflow-hidden h-full flex flex-col transition-all ${isDragging ? 'border-purple-500' : ''}`} style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #050508 100%)', minHeight: 120 }} onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
       <div className="flex items-center gap-3 px-4 py-2 border-b border-purple-900/30">
-        <button onClick={() => fileInputRef.current?.click()} className="btn-neon px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-wider" disabled={loading}>{loading ? '⏳ LOADING...' : '+ ADD FILES'}</button>
+        <button onClick={() => fileInputRef.current?.click()} className="btn-neon px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-wider" disabled={loading}>{loading ? '⏳ CARICAMENTO...' : '+ AGGIUNGI FILE'}</button>
         <input ref={fileInputRef} type="file" accept="audio/*" multiple className="hidden" onChange={handleFileInput} />
-        <span className="text-[10px] text-gray-600">{tracks.length === 0 ? 'Drag & drop audio files or click Add Files' : `${tracks.length} track${tracks.length === 1 ? '' : 's'}`}</span>
+        <span className="text-[10px] text-gray-600">{tracks.length === 0 ? 'Trascina file audio o clicca Aggiungi File' : `${tracks.length} brano${tracks.length === 1 ? '' : 'i'}`}</span>
         {selectedTrack && (
           <div className="flex gap-2 ml-auto">
-            <button onClick={() => { const t = tracks.find(tr => tr.id === selectedTrack); if (t) onLoadToDeck('A', t); }} className="btn-cue px-3 py-1 rounded text-[10px] font-bold">LOAD → A</button>
-            <button onClick={() => { const t = tracks.find(tr => tr.id === selectedTrack); if (t) onLoadToDeck('B', t); }} className="px-3 py-1 rounded text-[10px] font-bold transition-all" style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#ff2d78' }}>LOAD → B</button>
+            <button onClick={() => { const t = tracks.find(tr => tr.id === selectedTrack); if (t) onLoadToDeck('A', t); }} className="btn-cue px-3 py-1 rounded text-[10px] font-bold">CARICA → A</button>
+            <button onClick={() => { const t = tracks.find(tr => tr.id === selectedTrack); if (t) onLoadToDeck('B', t); }} className="px-3 py-1 rounded text-[10px] font-bold transition-all" style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#ff2d78' }}>CARICA → B</button>
           </div>
         )}
       </div>
@@ -88,7 +88,7 @@ export default function Library({ tracks, onAddTracks, onLoadToDeck, onLoadYouTu
         {tracks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-24 gap-2 opacity-50">
             <div className="text-3xl">{isDragging ? '🎵' : '📂'}</div>
-            <span className="text-xs text-gray-500">{isDragging ? 'Drop to add tracks' : 'No tracks loaded'}</span>
+            <span className="text-xs text-gray-500">{isDragging ? 'Rilascia per aggiungere brani' : 'Nessun brano caricato'}</span>
           </div>
         ) : (
           <div className="divide-y divide-purple-900/10">

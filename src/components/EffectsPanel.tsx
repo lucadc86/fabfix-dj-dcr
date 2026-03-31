@@ -14,11 +14,11 @@ interface EffectsPanelProps {
 }
 
 const INITIAL_EFFECTS: Effect[] = [
-  { id: 'filter', name: 'FILTER', active: false, color: '#b44fff', params: [{ name: 'Cutoff', key: 'cutoff', min: 20, max: 20000, value: 2000, unit: 'Hz' }, { name: 'Resonance', key: 'resonance', min: 0.1, max: 20, value: 1, unit: 'Q' }] },
-  { id: 'echo', name: 'ECHO', active: false, color: '#00f5ff', params: [{ name: 'Delay', key: 'delay', min: 0.05, max: 1, value: 0.3, unit: 's' }, { name: 'Feedback', key: 'feedback', min: 0, max: 0.9, value: 0.4, unit: '' }, { name: 'Wet', key: 'wet', min: 0, max: 1, value: 0.3, unit: '' }] },
-  { id: 'reverb', name: 'REVERB', active: false, color: '#ff2d78', params: [{ name: 'Room', key: 'room', min: 0, max: 1, value: 0.5, unit: '' }, { name: 'Damping', key: 'damping', min: 0, max: 1, value: 0.3, unit: '' }, { name: 'Wet', key: 'wet', min: 0, max: 1, value: 0.3, unit: '' }] },
-  { id: 'flanger', name: 'FLANGER', active: false, color: '#39ff14', params: [{ name: 'Rate', key: 'rate', min: 0.1, max: 5, value: 0.5, unit: 'Hz' }, { name: 'Depth', key: 'depth', min: 0, max: 1, value: 0.5, unit: '' }, { name: 'Feedback', key: 'feedback', min: 0, max: 0.9, value: 0.3, unit: '' }] },
-  { id: 'bitcrush', name: 'BITCRUSH', active: false, color: '#ffa500', params: [{ name: 'Bits', key: 'bits', min: 1, max: 16, value: 8, unit: 'bit' }, { name: 'Rate', key: 'rate', min: 0.1, max: 1, value: 0.5, unit: '' }] },
+  { id: 'filter', name: 'FILTRO', active: false, color: '#b44fff', params: [{ name: 'Taglio', key: 'cutoff', min: 20, max: 20000, value: 2000, unit: 'Hz' }, { name: 'Risonanza', key: 'resonance', min: 0.1, max: 20, value: 1, unit: 'Q' }] },
+  { id: 'echo', name: 'ECO', active: false, color: '#00f5ff', params: [{ name: 'Ritardo', key: 'delay', min: 0.05, max: 1, value: 0.3, unit: 's' }, { name: 'Feedback', key: 'feedback', min: 0, max: 0.9, value: 0.4, unit: '' }, { name: 'Mix', key: 'wet', min: 0, max: 1, value: 0.3, unit: '' }] },
+  { id: 'reverb', name: 'REVERB', active: false, color: '#ff2d78', params: [{ name: 'Stanza', key: 'room', min: 0, max: 1, value: 0.5, unit: '' }, { name: 'Smorzamento', key: 'damping', min: 0, max: 1, value: 0.3, unit: '' }, { name: 'Mix', key: 'wet', min: 0, max: 1, value: 0.3, unit: '' }] },
+  { id: 'flanger', name: 'FLANGER', active: false, color: '#39ff14', params: [{ name: 'Velocità', key: 'rate', min: 0.1, max: 5, value: 0.5, unit: 'Hz' }, { name: 'Profondità', key: 'depth', min: 0, max: 1, value: 0.5, unit: '' }, { name: 'Feedback', key: 'feedback', min: 0, max: 0.9, value: 0.3, unit: '' }] },
+  { id: 'bitcrush', name: 'BITCRUSH', active: false, color: '#ffa500', params: [{ name: 'Bit', key: 'bits', min: 1, max: 16, value: 8, unit: 'bit' }, { name: 'Velocità', key: 'rate', min: 0.1, max: 1, value: 0.5, unit: '' }] },
 ];
 
 export default function EffectsPanel({ engine: _engine }: EffectsPanelProps) {
@@ -55,7 +55,7 @@ export default function EffectsPanel({ engine: _engine }: EffectsPanelProps) {
         if (!effect) return null;
         return (
           <div className="px-4 py-3 flex gap-6 items-center flex-wrap" style={{ borderTop: `1px solid ${effect.color}22` }}>
-            <span className="text-[10px] font-bold tracking-widest" style={{ color: effect.color }}>{effect.name} PARAMS</span>
+            <span className="text-[10px] font-bold tracking-widest" style={{ color: effect.color }}>{effect.name} PARAMETRI</span>
             {effect.params.map(param => (
               <div key={param.key} className="flex items-center gap-2">
                 <span className="text-[9px] text-gray-500 w-16">{param.name}</span>
