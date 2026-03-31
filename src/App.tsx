@@ -24,6 +24,21 @@ export default function App() {
     engine.loadTrack(deckId, track);
   }, [engine]);
 
+  const loadYouTubeToDeck = useCallback((deckId: 'A' | 'B', youtubeId: string, title: string) => {
+    const track: Track = {
+      id: `yt-${youtubeId}`,
+      title,
+      artist: 'YouTube',
+      duration: 0,
+      bpm: 0,
+      youtubeId,
+      color: '#ff2d78',
+    };
+    const setter = deckId === 'A' ? setDeckA : setDeckB;
+    setter(prev => ({ ...prev, track, isPlaying: false, currentTime: 0, bpm: 0, detectedBpm: 0 }));
+    // YouTube tracks play via the IFrame player in YouTubePanel, not via the audio engine
+  }, []);
+
   const togglePlay = useCallback((deckId: 'A' | 'B') => {
     const setter = deckId === 'A' ? setDeckA : setDeckB;
     setter(prev => {
@@ -144,7 +159,7 @@ export default function App() {
             <button onClick={() => setActiveTab('library')} className={`px-4 py-1.5 text-xs font-semibold rounded-t-lg transition-all ${activeTab === 'library' ? 'bg-purple-900/50 text-purple-300 border border-purple-700/50 border-b-transparent' : 'text-gray-500 hover:text-purple-400'}`}>📁 LIBRARY</button>
             <button onClick={() => setActiveTab('youtube')} className={`px-4 py-1.5 text-xs font-semibold rounded-t-lg transition-all ${activeTab === 'youtube' ? 'bg-purple-900/50 text-purple-300 border border-purple-700/50 border-b-transparent' : 'text-gray-500 hover:text-purple-400'}`}>▶ YOUTUBE</button>
           </div>
-          <Library tracks={library} onAddTracks={addTracksToLibrary} onLoadToDeck={loadTrack} activeTab={activeTab} deckATrack={deckA.track} deckBTrack={deckB.track} />
+          <Library tracks={library} onAddTracks={addTracksToLibrary} onLoadToDeck={loadTrack} onLoadYouTubeToDeck={loadYouTubeToDeck} activeTab={activeTab} deckATrack={deckA.track} deckBTrack={deckB.track} />
         </div>
       </main>
     </div>
