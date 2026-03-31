@@ -268,13 +268,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-dark-950 text-white flex flex-col">
-      <header className="flex items-center justify-between px-6 py-3 border-b border-purple-900/30" style={{ background: 'linear-gradient(180deg, #0a0014 0%, #050508 100%)' }}>
-        <Logo />
-        <div className="flex items-center gap-4">
-          <AutomixPanel active={automixActive} onToggle={() => setAutomixActive(!automixActive)} />
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-purple-400 font-mono">MASTER</span>
-            <input type="range" min="0" max="1" step="0.01" value={mixer.masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} className="slider-neon w-24" />
+      <header className="flex flex-col border-b border-purple-900/30" style={{ background: 'linear-gradient(180deg, #0a0014 0%, #050508 100%)' }}>
+        <div className="flex flex-col items-center pt-2 pb-0.5">
+          <span className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: '#b44fff', letterSpacing: '0.3em' }}>DEVELOPED by DCR GROUP</span>
+          <span className="text-[9px] tracking-[0.25em] text-purple-500 font-medium uppercase">for LUNI DI PASQUA EDITION</span>
+        </div>
+        <div className="flex items-center justify-between px-6 py-2">
+          <Logo />
+          <div className="flex items-center gap-4">
+            <AutomixPanel active={automixActive} onToggle={() => setAutomixActive(!automixActive)} />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-purple-400 font-mono">MASTER</span>
+              <input type="range" min="0" max="1" step="0.01" value={mixer.masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} className="slider-neon w-24" />
+            </div>
           </div>
         </div>
       </header>
