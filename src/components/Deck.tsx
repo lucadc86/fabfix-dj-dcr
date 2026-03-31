@@ -82,8 +82,8 @@ export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync,
           <WaveformDisplay track={deckState.track} currentTime={deckState.currentTime} duration={deckState.duration} color={accentColor} />
           <div className="flex items-center gap-1.5">
             <button onClick={onCue} className="btn-cue flex-1 py-2 rounded-lg text-xs font-bold tracking-wider">CUE</button>
-            <button onClick={onSetCue} className="btn-neon px-2 py-2 rounded-lg text-[10px] font-bold" title="Set Cue Point">SET</button>
-            <button onClick={onPlay} className={`btn-play flex-1 py-2 rounded-lg text-xs font-bold tracking-wider ${deckState.isPlaying ? 'playing' : ''}`}>{deckState.isPlaying ? '⏸ PAUSE' : '▶ PLAY'}</button>
+            <button onClick={onSetCue} className="btn-neon px-2 py-2 rounded-lg text-[10px] font-bold" title="Imposta punto CUE">SET</button>
+            <button onClick={onPlay} className={`btn-play flex-1 py-2 rounded-lg text-xs font-bold tracking-wider ${deckState.isPlaying ? 'playing' : ''}`}>{deckState.isPlaying ? '⏸ PAUSA' : '▶ PLAY'}</button>
             <button onClick={onSync} className="btn-sync flex-1 py-2 rounded-lg text-xs font-bold tracking-wider">SYNC</button>
           </div>
           <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync,
             {(['high', 'mid', 'low'] as const).map(band => (
               <div key={band} className="flex flex-col items-center gap-1 flex-1">
                 <Knob value={deckState.eq[band]} min={-1} max={1} onChange={v => onEq(band, v)} color={accentColor} size={32} />
-                <span className="text-[9px] text-gray-500 uppercase tracking-widest">{band}</span>
+                <span className="text-[9px] text-gray-500 uppercase tracking-widest">{{ high: 'ALTI', mid: 'MEDI', low: 'BASSI' }[band]}</span>
               </div>
             ))}
             <div className="flex flex-col items-center gap-1 flex-1">

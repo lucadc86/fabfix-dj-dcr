@@ -156,7 +156,7 @@ export default function App() {
         <div className="px-3 pb-2"><EffectsPanel engine={engine} /></div>
         <div className="flex-1 px-3 pb-3">
           <div className="flex gap-2 mb-2">
-            <button onClick={() => setActiveTab('library')} className={`px-4 py-1.5 text-xs font-semibold rounded-t-lg transition-all ${activeTab === 'library' ? 'bg-purple-900/50 text-purple-300 border border-purple-700/50 border-b-transparent' : 'text-gray-500 hover:text-purple-400'}`}>📁 LIBRARY</button>
+            <button onClick={() => setActiveTab('library')} className={`px-4 py-1.5 text-xs font-semibold rounded-t-lg transition-all ${activeTab === 'library' ? 'bg-purple-900/50 text-purple-300 border border-purple-700/50 border-b-transparent' : 'text-gray-500 hover:text-purple-400'}`}>📁 LIBRERIA</button>
             <button onClick={() => setActiveTab('youtube')} className={`px-4 py-1.5 text-xs font-semibold rounded-t-lg transition-all ${activeTab === 'youtube' ? 'bg-purple-900/50 text-purple-300 border border-purple-700/50 border-b-transparent' : 'text-gray-500 hover:text-purple-400'}`}>▶ YOUTUBE</button>
           </div>
           <Library tracks={library} onAddTracks={addTracksToLibrary} onLoadToDeck={loadTrack} onLoadYouTubeToDeck={loadYouTubeToDeck} activeTab={activeTab} deckATrack={deckA.track} deckBTrack={deckB.track} />

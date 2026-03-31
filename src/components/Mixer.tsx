@@ -59,7 +59,7 @@ export default function Mixer({ mixer, deckA, deckB, onCrossfader }: MixerProps)
           </div>
         </div>
         <div className="w-full">
-          <div className="text-[9px] text-purple-500 tracking-widest mb-1.5 text-center">CHANNEL STATUS</div>
+          <div className="text-[9px] text-purple-500 tracking-widest mb-1.5 text-center">STATO CANALI</div>
           <div className="flex justify-between text-[9px]">
             <div className="flex flex-col items-center gap-1">
               <div className={`w-2 h-2 rounded-full ${deckA.isPlaying ? 'bg-cyan-400' : 'bg-gray-800'}`} style={{ boxShadow: deckA.isPlaying ? '0 0 6px #00f5ff' : 'none' }} />

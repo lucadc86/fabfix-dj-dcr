@@ -150,9 +150,9 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
   const handleAdd = useCallback(() => {
     setError('');
     const videoId = extractVideoId(urlInput);
-    if (!videoId) { setError('Invalid YouTube URL. Please paste a valid YouTube link.'); return; }
+    if (!videoId) { setError('URL YouTube non valido. Incolla un link YouTube valido.'); return; }
     const alreadyExists = tracks.some(t => t.youtubeId === videoId);
-    if (alreadyExists) { setError('This track is already in the list.'); return; }
+    if (alreadyExists) { setError('Questo brano è già nella lista.'); return; }
     const newTrack: YTTrack = { id: `yt-${Date.now()}`, youtubeId: videoId, title: `YouTube – ${videoId}` };
     setTracks(prev => [...prev, newTrack]);
     setUrlInput('');
@@ -180,10 +180,10 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
           value={urlInput}
           onChange={e => { setUrlInput(e.target.value); setError(''); }}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="Paste YouTube link (e.g. https://youtu.be/...)"
+          placeholder="Incolla link YouTube (es. https://youtu.be/...)"
           className="flex-1 bg-transparent text-xs text-white placeholder-gray-700 outline-none border border-purple-900/30 rounded px-2 py-1 focus:border-purple-600/60 transition-colors"
         />
-        <button onClick={handleAdd} className="btn-neon px-3 py-1.5 rounded text-[10px] font-bold tracking-wider flex-shrink-0">+ ADD</button>
+        <button onClick={handleAdd} className="btn-neon px-3 py-1.5 rounded text-[10px] font-bold tracking-wider flex-shrink-0">+ AGGIUNGI</button>
       </div>
 
       {error && (
@@ -196,7 +196,7 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
           {tracks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-24 gap-1 opacity-40 px-3">
               <span className="text-2xl">▶</span>
-              <span className="text-[10px] text-gray-500 text-center">No YouTube tracks.<br />Paste a URL above.</span>
+              <span className="text-[10px] text-gray-500 text-center">Nessun brano YouTube.<br />Incolla un URL sopra.</span>
             </div>
           ) : (
             <div className="divide-y divide-purple-900/10">
@@ -265,7 +265,7 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-2 opacity-30">
               <span className="text-3xl">▶</span>
-              <span className="text-[10px] text-gray-500">Select a track from the list or add a YouTube URL above</span>
+              <span className="text-[10px] text-gray-500">Seleziona un brano dalla lista o aggiungi un URL YouTube sopra</span>
             </div>
           )}
         </div>
@@ -273,7 +273,7 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
 
       {!apiReady && (
         <div className="px-4 py-1 text-[10px] text-yellow-600 border-t border-yellow-900/20">
-          ⏳ Loading YouTube API…
+          ⏳ Caricamento API YouTube…
         </div>
       )}
     </div>
