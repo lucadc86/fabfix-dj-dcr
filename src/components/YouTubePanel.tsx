@@ -88,10 +88,16 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
   const [apiReady, setApiReady] = useState(apiLoaded);
   const playerRef = useRef<YTPlayerInstance | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const currentVideoIdRef = useRef<string | null>(null);
   const playerDivId = 'yt-player-container';
 
   useEffect(() => {
     loadYouTubeAPI(() => setApiReady(true));
+  }, []);
+
+  const applyTrackTitle = useCallback((youtubeId: string, title: string) => {
+    setTracks(prev => prev.map(t => t.youtubeId === youtubeId ? { ...t, title } : t));
+    setSelectedTrack(prev => prev?.youtubeId === youtubeId ? { ...prev, title } : prev);
   }, []);
 
   const initPlayer = useCallback((videoId: string) => {
@@ -111,16 +117,37 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
         onReady: (e) => {
           e.target.playVideo();
           setIsPlaying(true);
+          const data = e.target.getVideoData();
+          if (data?.title) applyTrackTitle(videoId, data.title);
         },
         onStateChange: (e) => {
-          if (e.data === window.YT.PlayerState.PLAYING) setIsPlaying(true);
+          if (e.data === window.YT.PlayerState.PLAYING) {
+            setIsPlaying(true);
+            if (playerRef.current) {
+              const data = playerRef.current.getVideoData();
+              if (data?.title && data?.video_id) applyTrackTitle(data.video_id, data.title);
+            }
+          }
           if (e.data === window.YT.PlayerState.PAUSED || e.data === window.YT.PlayerState.ENDED) setIsPlaying(false);
         },
       },
     });
-  }, [apiReady]);
+  }, [apiReady, applyTrackTitle]);
 
-    const handleAdd = useCallback(() => {
+  // Initialize or switch the player after React re-renders and the player div is in the DOM.
+  useEffect(() => {
+    if (!selectedTrack) {
+      currentVideoIdRef.current = null;
+      return;
+    }
+    if (!apiReady) return;
+    const videoId = selectedTrack.youtubeId;
+    if (currentVideoIdRef.current === videoId && playerRef.current) return;
+    currentVideoIdRef.current = videoId;
+    initPlayer(videoId);
+  }, [selectedTrack, apiReady, initPlayer]);
+
+  const handleAdd = useCallback(() => {
     setError('');
     const videoId = extractVideoId(urlInput);
     if (!videoId) { setError('Invalid YouTube URL. Please paste a valid YouTube link.'); return; }
@@ -130,13 +157,11 @@ export default function YouTubePanel({ onLoadToDeck }: YouTubePanelProps) {
     setTracks(prev => [...prev, newTrack]);
     setUrlInput('');
     setSelectedTrack(newTrack);
-    if (apiReady) initPlayer(videoId);
-  }, [urlInput, tracks, apiReady, initPlayer]);
+  }, [urlInput, tracks]);
 
   const handleSelectTrack = useCallback((track: YTTrack) => {
     setSelectedTrack(track);
-    if (apiReady) initPlayer(track.youtubeId);
-  }, [apiReady, initPlayer]);
+  }, []);
 
   const handlePlayPause = useCallback(() => {
     if (!playerRef.current) return;
