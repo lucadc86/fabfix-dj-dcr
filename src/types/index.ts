@@ -6,6 +6,7 @@ export interface Track {
   bpm: number;
   file?: File;
   url?: string;
+  youtubeId?: string;
   audioBuffer?: AudioBuffer;
   waveformData?: Float32Array;
   color: string;

@@ -1,10 +1,12 @@
 import { useRef, useCallback, useState } from 'react';
 import type { Track } from '../types';
+import YouTubePanel from './YouTubePanel';
 
 interface LibraryProps {
   tracks: Track[];
   onAddTracks: (tracks: Track[]) => void;
   onLoadToDeck: (deckId: 'A' | 'B', track: Track) => void;
+  onLoadYouTubeToDeck: (deckId: 'A' | 'B', youtubeId: string, title: string) => void;
   activeTab: 'library' | 'youtube';
   deckATrack: Track | null;
   deckBTrack: Track | null;
@@ -26,7 +28,7 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function Library({ tracks, onAddTracks, onLoadToDeck, activeTab, deckATrack, deckBTrack }: LibraryProps) {
+export default function Library({ tracks, onAddTracks, onLoadToDeck, onLoadYouTubeToDeck, activeTab, deckATrack, deckBTrack }: LibraryProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,24 +68,7 @@ export default function Library({ tracks, onAddTracks, onLoadToDeck, activeTab, 
   const handleDragLeave = useCallback(() => { setIsDragging(false); }, []);
 
   if (activeTab === 'youtube') {
-    return (
-      <div className="neon-border rounded-xl rounded-tl-none overflow-hidden h-full" style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #050508 100%)', minHeight: 120 }}>
-        <div className="p-4">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,45,120,0.15)', border: '1px solid rgba(255,45,120,0.3)' }}><span className="text-sm">▶</span></div>
-            <div>
-              <h3 className="text-sm font-bold text-white mb-1">YouTube Integration</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">Direct audio ripping from YouTube is not permitted by their Terms of Service. This section is reserved for a future compliant integration.</p>
-            </div>
-          </div>
-          <div className="mt-3 flex gap-2">
-            {['SoundCloud', 'Beatport', 'Mixcloud'].map(platform => (
-              <div key={platform} className="px-3 py-1.5 rounded-lg text-[10px] text-gray-600 border border-gray-800/50 opacity-50">{platform} <span className="text-[8px] ml-1">SOON</span></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <YouTubePanel onLoadToDeck={onLoadYouTubeToDeck} />;
   }
 
   return (

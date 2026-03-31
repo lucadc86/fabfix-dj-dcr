@@ -27,6 +27,11 @@ Professional web-based DJ application with a dual-deck interface, built with Rea
 | Styling | Tailwind CSS |
 | Audio | Web Audio API (custom engine in `src/audio/engine.ts`) |
 
+## Prerequisites
+
+- **Node.js** `^20.19.0 || >=22.12.0` — required by Vite 8 and the React plugin.  
+  If you use [nvm](https://github.com/nvm-sh/nvm), simply run `nvm use` in the project root to switch to the correct version automatically (the `.nvmrc` file is already configured).
+
 ## Local Setup
 
 ```bash
@@ -34,10 +39,13 @@ Professional web-based DJ application with a dual-deck interface, built with Rea
 git clone https://github.com/lucadc86/fabfix-dj-dcr.git
 cd fabfix-dj-dcr
 
-# 2. Install dependencies
+# 2. (Optional) Switch to the required Node.js version with nvm
+nvm use
+
+# 3. Install dependencies
 npm install
 
-# 3. Start the development server
+# 4. Start the development server
 npm run dev
 ```
 
