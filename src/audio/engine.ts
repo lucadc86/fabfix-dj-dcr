@@ -13,6 +13,9 @@ interface DeckEngine {
   eqHigh: BiquadFilterNode;
   gainNodeEq: GainNode;
   compressor: DynamicsCompressorNode;
+  loopActive: boolean;
+  loopStart: number;
+  loopEnd: number;
 }
 
 interface EffectNodes {
@@ -20,6 +23,7 @@ interface EffectNodes {
   echo: { delay: DelayNode; feedback: GainNode; wet: GainNode; dry: GainNode };
   reverb: { convolver: ConvolverNode; wet: GainNode; dry: GainNode };
   flanger: { delay: DelayNode; lfo: OscillatorNode; lfoGain: GainNode; wet: GainNode; dry: GainNode };
+  bitcrush: { shaper: WaveShaperNode; wet: GainNode; dry: GainNode };
 }
 
 export function createAudioEngine() {
@@ -39,6 +43,17 @@ export function createAudioEngine() {
   crossfadeA.connect(effectsInput);
   crossfadeB.connect(effectsInput);
   effectsOutput.connect(masterGain);
+
+  function createBitCrushCurve(bits: number): Float32Array<ArrayBuffer> {
+    const samples = 65536;
+    const curve = new Float32Array(new ArrayBuffer(samples * 4));
+    const step = Math.pow(2, Math.max(1, Math.floor(bits)));
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      curve[i] = Math.round(x * step) / step;
+    }
+    return curve;
+  }
 
   // Build effects chain nodes
   function buildEffects(): EffectNodes {
@@ -97,25 +112,35 @@ export function createAudioEngine() {
     flangerWet.gain.value = 0;
     flangerDry.gain.value = 1;
 
+    // --- Bitcrush ---
+    const bitcrushShaper = ctx.createWaveShaper();
+    bitcrushShaper.curve = createBitCrushCurve(8);
+    bitcrushShaper.oversample = '2x';
+    const bitcrushWet = ctx.createGain();
+    const bitcrushDry = ctx.createGain();
+    bitcrushWet.gain.value = 0;
+    bitcrushDry.gain.value = 1;
+
     return {
       filter: { node: filterNode, wet: filterWet, dry: filterDry },
       echo: { delay: echoDelay, feedback: echoFeedback, wet: echoWet, dry: echoDry },
       reverb: { convolver: reverbConvolver, wet: reverbWet, dry: reverbDry },
       flanger: { delay: flangerDelay, lfo: flangerLfo, lfoGain: flangerLfoGain, wet: flangerWet, dry: flangerDry },
+      bitcrush: { shaper: bitcrushShaper, wet: bitcrushWet, dry: bitcrushDry },
     };
   }
 
   const fx = buildEffects();
 
   // Wire effects chain: effectsInput → [dry+wet parallel for each effect] → effectsOutput
-  // Chain: effectsInput → filter(dry/wet) → echo(dry/wet) → reverb(dry/wet) → flanger(dry/wet) → effectsOutput
+  // Chain: effectsInput → filter → echo → reverb → flanger → bitcrush → effectsOutput
   const chainNodes: GainNode[] = [];
   function buildChainNode() { const g = ctx.createGain(); return g; }
 
-  // Manual chain: effectsInput → splitFilter → splitEcho → splitReverb → splitFlanger → effectsOutput
   const postFilter = buildChainNode();
   const postEcho = buildChainNode();
   const postReverb = buildChainNode();
+  const postFlanger = buildChainNode();
 
   // Filter
   effectsInput.connect(fx.filter.dry);
@@ -142,10 +167,17 @@ export function createAudioEngine() {
   postReverb.connect(fx.flanger.dry);
   postReverb.connect(fx.flanger.delay);
   fx.flanger.delay.connect(fx.flanger.wet);
-  fx.flanger.dry.connect(effectsOutput);
-  fx.flanger.wet.connect(effectsOutput);
+  fx.flanger.dry.connect(postFlanger);
+  fx.flanger.wet.connect(postFlanger);
 
-  chainNodes.push(postFilter, postEcho, postReverb);
+  // Bitcrush
+  postFlanger.connect(fx.bitcrush.dry);
+  postFlanger.connect(fx.bitcrush.shaper);
+  fx.bitcrush.shaper.connect(fx.bitcrush.wet);
+  fx.bitcrush.dry.connect(effectsOutput);
+  fx.bitcrush.wet.connect(effectsOutput);
+
+  chainNodes.push(postFilter, postEcho, postReverb, postFlanger);
 
   function createDeckChain(): DeckEngine {
     const gainNode = ctx.createGain();
@@ -169,7 +201,7 @@ export function createAudioEngine() {
     eqHigh.connect(gainNodeEq);
     gainNodeEq.connect(compressor);
 
-    return { audioBuffer: null, source: null, gainNode, pitchRate: 1, startTime: 0, startOffset: 0, isPlaying: false, eqLow, eqMid, eqHigh, gainNodeEq, compressor };
+    return { audioBuffer: null, source: null, gainNode, pitchRate: 1, startTime: 0, startOffset: 0, isPlaying: false, eqLow, eqMid, eqHigh, gainNodeEq, compressor, loopActive: false, loopStart: 0, loopEnd: 0 };
   }
 
   const decks: { A: DeckEngine; B: DeckEngine } = { A: createDeckChain(), B: createDeckChain() };
@@ -191,6 +223,11 @@ export function createAudioEngine() {
     const source = ctx.createBufferSource();
     source.buffer = deck.audioBuffer;
     source.playbackRate.value = deck.pitchRate;
+    if (deck.loopActive && deck.loopEnd > deck.loopStart) {
+      source.loop = true;
+      source.loopStart = deck.loopStart;
+      source.loopEnd = deck.loopEnd;
+    }
     source.connect(deck.gainNode);
     source.onended = () => { if (deck.isPlaying) deck.isPlaying = false; };
     return source;
@@ -230,12 +267,35 @@ export function createAudioEngine() {
   function getCurrentTime(deckId: 'A' | 'B'): number {
     const deck = decks[deckId];
     if (!deck.audioBuffer) return 0;
-    if (deck.isPlaying) return deck.startOffset + (ctx.currentTime - deck.startTime) * deck.pitchRate;
+    if (deck.isPlaying) {
+      const t = deck.startOffset + (ctx.currentTime - deck.startTime) * deck.pitchRate;
+      if (deck.loopActive && deck.loopEnd > deck.loopStart) {
+        const loopLen = deck.loopEnd - deck.loopStart;
+        if (t >= deck.loopEnd) {
+          return deck.loopStart + ((t - deck.loopStart) % loopLen);
+        }
+      }
+      return t;
+    }
     return deck.startOffset;
   }
   function getDuration(deckId: 'A' | 'B'): number { return decks[deckId].audioBuffer?.duration ?? 0; }
   function setVolume(deckId: 'A' | 'B', volume: number) { decks[deckId].gainNode.gain.value = volume; }
   function setGain(deckId: 'A' | 'B', gain: number) { decks[deckId].gainNodeEq.gain.value = gain; }
+  function setLoopActive(deckId: 'A' | 'B', active: boolean, start?: number, end?: number) {
+    const deck = decks[deckId];
+    if (start !== undefined) deck.loopStart = Math.max(0, start);
+    if (end !== undefined) deck.loopEnd = Math.max(0, end);
+    deck.loopActive = active;
+    if (deck.source) {
+      const valid = active && deck.loopEnd > deck.loopStart;
+      deck.source.loop = valid;
+      if (valid) {
+        deck.source.loopStart = deck.loopStart;
+        deck.source.loopEnd = deck.loopEnd;
+      }
+    }
+  }
   function setPitch(deckId: 'A' | 'B', pitch: number) {
     const rate = 1 + pitch / 100;
     decks[deckId].pitchRate = rate;
@@ -422,6 +482,13 @@ export function createAudioEngine() {
         fx.flanger.dry.gain.setTargetAtTime(1, ctx.currentTime, 0.02);
         break;
       }
+      case 'bitcrush': {
+        const bits = Math.max(1, Math.min(16, params.bits ?? 8));
+        fx.bitcrush.shaper.curve = createBitCrushCurve(bits);
+        fx.bitcrush.wet.gain.setTargetAtTime(active ? 1 : 0, ctx.currentTime, 0.02);
+        fx.bitcrush.dry.gain.setTargetAtTime(active ? 0 : 1, ctx.currentTime, 0.02);
+        break;
+      }
       default:
         break;
     }
@@ -429,7 +496,7 @@ export function createAudioEngine() {
 
   setCrossfader(0.5);
 
-  return { loadTrack, play, pause, seekTo, setCue, getCurrentTime, getDuration, setVolume, setGain, setPitch, setEq, setCrossfader, setMasterVolume, getAnalyzer, loadAudioFile, getContext, getCrossfaderGains, applyEffect, playDrumPad };
+  return { loadTrack, play, pause, seekTo, setCue, getCurrentTime, getDuration, setVolume, setGain, setLoopActive, setPitch, setEq, setCrossfader, setMasterVolume, getAnalyzer, loadAudioFile, getContext, getCrossfaderGains, applyEffect, playDrumPad };
 }
 
 export type AudioEngine = ReturnType<typeof createAudioEngine>;
