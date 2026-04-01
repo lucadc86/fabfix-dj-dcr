@@ -33,27 +33,28 @@ export default function Knob({ value, min, max, onChange, color = '#b44fff', siz
   const indicatorX = cx + (r - 4) * Math.cos(toRad(angle - 90));
   const indicatorY = cy + (r - 4) * Math.sin(toRad(angle - 90));
 
-  const onMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragging.current) return;
-    const delta = (startY.current - e.clientY) / 150;
-    const newValue = Math.max(min, Math.min(max, startValue.current + delta * (max - min)));
-    onChange(newValue);
-  }, [min, max, onChange]);
-
-  const onMouseUp = useCallback(() => {
-    dragging.current = false;
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-  }, [onMouseMove]);
-
   const onMouseDownHandler = useCallback((e: React.MouseEvent) => {
     dragging.current = true;
     startY.current = e.clientY;
     startValue.current = value;
     e.preventDefault();
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  }, [value, onMouseMove, onMouseUp]);
+
+    const handleMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const delta = (startY.current - ev.clientY) / 150;
+      const newValue = Math.max(min, Math.min(max, startValue.current + delta * (max - min)));
+      onChange(newValue);
+    };
+
+    const handleUp = () => {
+      dragging.current = false;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [value, min, max, onChange]);
 
   return (
     <svg width={size} height={size} style={{ cursor: 'ns-resize', userSelect: 'none' }} onMouseDown={onMouseDownHandler}>

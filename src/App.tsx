@@ -24,14 +24,13 @@ function loadYtLibraryFromStorage(): Track[] {
 }
 
 export default function App() {
-  const engineRef = useRef(createAudioEngine());
+  const [engine] = useState(() => createAudioEngine());
   const [deckA, setDeckA] = useState<DeckState>({ id: 'A', track: null, isPlaying: false, volume: 0.8, pitch: 0, bpm: 0, detectedBpm: 0, cuePoint: 0, currentTime: 0, duration: 0, loop: false, loopStart: 0, loopEnd: 0, eq: { low: 0, mid: 0, high: 0 }, gain: 0.8 });
   const [deckB, setDeckB] = useState<DeckState>({ id: 'B', track: null, isPlaying: false, volume: 0.8, pitch: 0, bpm: 0, detectedBpm: 0, cuePoint: 0, currentTime: 0, duration: 0, loop: false, loopStart: 0, loopEnd: 0, eq: { low: 0, mid: 0, high: 0 }, gain: 0.8 });
   const [mixer, setMixer] = useState<MixerState>({ crossfader: 0.5, masterVolume: 0.9 });
   const [library, setLibrary] = useState<Track[]>(loadYtLibraryFromStorage);
   const [automixActive, setAutomixActive] = useState(false);
   const [activeTab, setActiveTab] = useState<'library' | 'youtube'>('library');
-  const engine = engineRef.current;
 
   // Volume refs for crossfader-aware YouTube volume updates
   const deckAVolumeRef = useRef(0.8);
@@ -52,10 +51,11 @@ export default function App() {
 
   // Load YouTube IFrame API once and create a hidden player for each deck
   useEffect(() => {
+    const players: { A: YTPlayerInstance | null; B: YTPlayerInstance | null } = { A: null, B: null };
     loadYouTubeAPI(() => {
       (['A', 'B'] as const).forEach(deckId => {
         const setter = deckId === 'A' ? setDeckA : setDeckB;
-        ytPlayersRef.current[deckId] = new window.YT.Player(`yt-deck-${deckId}`, {
+        const player = new window.YT.Player(`yt-deck-${deckId}`, {
           height: '2',
           width: '2',
           playerVars: { autoplay: 0, controls: 0, rel: 0, playsinline: 1 },
@@ -74,13 +74,13 @@ export default function App() {
             },
           },
         });
+        ytPlayersRef.current[deckId] = player;
+        players[deckId] = player;
       });
     });
     return () => {
-      const playerA = ytPlayersRef.current.A;
-      const playerB = ytPlayersRef.current.B;
-      playerA?.destroy();
-      playerB?.destroy();
+      players.A?.destroy();
+      players.B?.destroy();
     };
   }, []);
 
@@ -341,9 +341,9 @@ export default function App() {
 
       <main className="flex-1 flex flex-col">
         <div className="flex gap-2 p-3" style={{ minHeight: '420px' }}>
-          <div className="flex-1"><Deck deckState={deckA} side="left" onPlay={() => togglePlay('A')} onCue={() => jumpToCue('A')} onSetCue={() => setCue('A')} onSync={() => syncDecks('A')} onVolume={v => setVolume('A', v)} onGain={g => setGain('A', g)} onPitch={p => setPitch('A', p)} onEq={(band, v) => setEq('A', band, v)} onScratch={d => handleScratch('A', d)} /></div>
+          <div className="flex-1"><Deck deckState={deckA} side="left" onPlay={() => togglePlay('A')} onCue={() => jumpToCue('A')} onSetCue={() => setCue('A')} onSync={() => syncDecks('A')} onVolume={v => setVolume('A', v)} onGain={g => setGain('A', g)} onPitch={p => setPitch('A', p)} onEq={(band, v) => setEq('A', band, v)} onScratch={d => handleScratch('A', d)} onDrumPad={id => engine.playDrumPad(id)} /></div>
           <div className="w-52 flex-shrink-0"><Mixer mixer={mixer} deckA={deckA} deckB={deckB} onCrossfader={setCrossfader} /></div>
-          <div className="flex-1"><Deck deckState={deckB} side="right" onPlay={() => togglePlay('B')} onCue={() => jumpToCue('B')} onSetCue={() => setCue('B')} onSync={() => syncDecks('B')} onVolume={v => setVolume('B', v)} onGain={g => setGain('B', g)} onPitch={p => setPitch('B', p)} onEq={(band, v) => setEq('B', band, v)} onScratch={d => handleScratch('B', d)} /></div>
+          <div className="flex-1"><Deck deckState={deckB} side="right" onPlay={() => togglePlay('B')} onCue={() => jumpToCue('B')} onSetCue={() => setCue('B')} onSync={() => syncDecks('B')} onVolume={v => setVolume('B', v)} onGain={g => setGain('B', g)} onPitch={p => setPitch('B', p)} onEq={(band, v) => setEq('B', band, v)} onScratch={d => handleScratch('B', d)} onDrumPad={id => engine.playDrumPad(id)} /></div>
         </div>
         <div className="px-3 pb-2"><EffectsPanel engine={engine} /></div>
         <div className="flex-1 px-3 pb-3">

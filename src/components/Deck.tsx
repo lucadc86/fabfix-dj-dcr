@@ -14,7 +14,19 @@ interface DeckProps {
   onPitch: (p: number) => void;
   onEq: (band: 'low' | 'mid' | 'high', v: number) => void;
   onScratch?: (deltaSeconds: number) => void;
+  onDrumPad: (padId: string) => void;
 }
+
+const DRUM_PADS = [
+  { id: 'kick',    label: 'KICK',    color: '#b44fff' },
+  { id: 'snare',   label: 'SNARE',   color: '#ffa500' },
+  { id: 'clap',    label: 'CLAP',    color: '#39ff14' },
+  { id: 'hihat',   label: 'HI-HAT',  color: '#00f5ff' },
+  { id: 'rimshot', label: 'RIM',     color: '#ffff00' },
+  { id: 'cash',    label: 'CASH',    color: '#ff8c00' },
+  { id: 'gunshot', label: 'GUNSHOT', color: '#ff2d78' },
+  { id: 'hihat',   label: 'OPEN HH', color: '#44ddff' },
+] as const;
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -23,7 +35,7 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync, onVolume, onGain, onPitch, onEq, onScratch }: DeckProps) {
+export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync, onVolume, onGain, onPitch, onEq, onScratch, onDrumPad }: DeckProps) {
   const vinylRef = useRef<HTMLDivElement>(null);
   const [rotation, setRotation] = useState(0);
   const [jogActive, setJogActive] = useState(false);
@@ -31,6 +43,8 @@ export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync,
   const jogStartXRef = useRef(0);
   const jogStartRotRef = useRef(0);
   const jogAccumRef = useRef(0);
+  const [padMode, setPadMode] = useState<'hotcue' | 'loop' | 'sampler'>('sampler');
+  const [activePad, setActivePad] = useState<string | null>(null);
 
   useEffect(() => {
     if (deckState.isPlaying && !jogActive) {
@@ -70,7 +84,7 @@ export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync,
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-  }, [rotation, onPitch, onScratch, deckState.pitch]);
+  }, [rotation, onPitch, onScratch]);
 
   const progress = deckState.duration > 0 ? deckState.currentTime / deckState.duration : 0;
   const accentColor = side === 'left' ? '#00f5ff' : '#ff2d78';
@@ -187,6 +201,45 @@ export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync,
               <span className="text-[9px] text-gray-500 uppercase tracking-widest">GAIN</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Sampler Pad Section */}
+      <div className="border-t px-2 py-2" style={{ borderColor: accentColorMuted }}>
+        {/* Mode buttons */}
+        <div className="flex gap-1 mb-2">
+          {(['hotcue', 'loop', 'sampler'] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => setPadMode(mode)}
+              className="flex-1 py-1 rounded text-[9px] font-bold tracking-widest transition-all"
+              style={padMode === mode
+                ? { background: `${accentColor}33`, border: `1px solid ${accentColor}88`, color: accentColor, boxShadow: `0 0 6px ${accentColor}44` }
+                : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#6b7280' }}
+            >
+              {{ hotcue: 'HOT CUE', loop: 'LOOP', sampler: 'SAMPLER' }[mode]}
+            </button>
+          ))}
+        </div>
+        {/* Drum pads grid */}
+        <div className="grid grid-cols-4 gap-1">
+          {DRUM_PADS.map((pad, i) => (
+            <button
+              key={`${pad.id}-${i}`}
+              onMouseDown={() => { setActivePad(pad.id + i); if (padMode === 'sampler') onDrumPad(pad.id); }}
+              onMouseUp={() => setActivePad(null)}
+              onMouseLeave={() => setActivePad(null)}
+              className="rounded py-2 text-[9px] font-bold tracking-wide transition-all select-none"
+              style={{
+                background: activePad === pad.id + i ? `${pad.color}55` : `${pad.color}18`,
+                border: `1px solid ${pad.color}66`,
+                color: pad.color,
+                boxShadow: activePad === pad.id + i ? `0 0 8px ${pad.color}88` : `0 0 4px ${pad.color}22`,
+              }}
+            >
+              {pad.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>
