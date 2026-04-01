@@ -49,10 +49,18 @@ export default function Mixer({ mixer, deckA, deckB, onCrossfader }: MixerProps)
           <div className="flex flex-col items-center gap-1">
             <span className="text-[9px] text-cyan-500 tracking-widest">A</span>
             <div className="flex gap-0.5"><VUMeter level={levelA} color="#00f5ff" /><VUMeter level={levelA * 0.9} color="#00f5ff" /></div>
+            <div className="text-center">
+              <div className="text-[10px] font-mono font-bold" style={{ color: '#00f5ff' }}>{deckA.detectedBpm > 0 ? deckA.detectedBpm.toFixed(0) : '--'}</div>
+              <div className="text-[8px] text-gray-700 tracking-widest">BPM</div>
+            </div>
           </div>
           <div className="flex flex-col items-center gap-1">
             <span className="text-[9px] text-pink-500 tracking-widest">B</span>
             <div className="flex gap-0.5"><VUMeter level={levelB} color="#ff2d78" /><VUMeter level={levelB * 0.9} color="#ff2d78" /></div>
+            <div className="text-center">
+              <div className="text-[10px] font-mono font-bold" style={{ color: '#ff2d78' }}>{deckB.detectedBpm > 0 ? deckB.detectedBpm.toFixed(0) : '--'}</div>
+              <div className="text-[8px] text-gray-700 tracking-widest">BPM</div>
+            </div>
           </div>
         </div>
         <div className="w-full">

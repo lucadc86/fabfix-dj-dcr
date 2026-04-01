@@ -16,12 +16,15 @@ function loadYtLibraryFromStorage(): Track[] {
   try {
     const stored = localStorage.getItem(YT_LIBRARY_KEY);
     if (stored) {
-      const arr = JSON.parse(stored) as Array<{ id: string; youtubeId: string; title: string }>;
-      return arr.map(t => ({ id: t.id, title: t.title, artist: 'YouTube', duration: 0, bpm: 0, youtubeId: t.youtubeId, color: '#ff2d78' }));
+      const arr = JSON.parse(stored) as Array<{ id: string; youtubeId: string; title: string; bpm?: number }>;
+      return arr.map(t => ({ id: t.id, title: t.title, artist: 'YouTube', duration: 0, bpm: t.bpm ?? 0, youtubeId: t.youtubeId, color: '#ff2d78' }));
     }
   } catch { /* ignore */ }
   return [];
 }
+
+const MIN_PITCH_ADJUST = -12;
+const MAX_PITCH_ADJUST = 12;
 
 export default function App() {
   const [engine] = useState(() => createAudioEngine());
@@ -30,12 +33,17 @@ export default function App() {
   const [mixer, setMixer] = useState<MixerState>({ crossfader: 0.5, masterVolume: 0.9 });
   const [library, setLibrary] = useState<Track[]>(loadYtLibraryFromStorage);
   const [automixActive, setAutomixActive] = useState(false);
+  const [automixFadeTime, setAutomixFadeTime] = useState(15);
+  const [automixBpmSync, setAutomixBpmSync] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [activeTab, setActiveTab] = useState<'library' | 'youtube'>('library');
 
   // Volume refs for crossfader-aware YouTube volume updates
   const deckAVolumeRef = useRef(0.8);
   const deckBVolumeRef = useRef(0.8);
   const crossfaderRef = useRef(0.5);
+  // Tracks whether BPM-sync pitch was already applied for the current automix transition
+  const bpmSyncAppliedRef = useRef<{ A: boolean; B: boolean }>({ A: false, B: false });
 
   // Per-deck YouTube IFrame players (hidden, audio-only output)
   const ytPlayersRef = useRef<{ A: YTPlayerInstance | null; B: YTPlayerInstance | null }>({ A: null, B: null });
@@ -84,11 +92,11 @@ export default function App() {
     };
   }, []);
 
-  // Persist YouTube tracks to localStorage whenever the library changes
+  // Persist YouTube tracks (including BPM) to localStorage whenever the library changes
   useEffect(() => {
     const ytTracks = library
       .filter(t => !!t.youtubeId)
-      .map(t => ({ id: t.id, youtubeId: t.youtubeId!, title: t.title }));
+      .map(t => ({ id: t.id, youtubeId: t.youtubeId!, title: t.title, bpm: t.bpm }));
     localStorage.setItem(YT_LIBRARY_KEY, JSON.stringify(ytTracks));
   }, [library]);
 
@@ -105,7 +113,10 @@ export default function App() {
 
   const loadYouTubeToDeck = useCallback((deckId: 'A' | 'B', youtubeId: string, title: string) => {
     const trackId = `yt-${youtubeId}`;
-    const track: Track = { id: trackId, title, artist: 'YouTube', duration: 0, bpm: 0, youtubeId, color: '#ff2d78' };
+    // Preserve existing BPM from library if already set
+    const existingTrack = library.find(t => t.id === trackId);
+    const bpm = existingTrack?.bpm ?? 0;
+    const track: Track = { id: trackId, title, artist: 'YouTube', duration: 0, bpm, youtubeId, color: '#ff2d78' };
 
     // Add to global library if not already present
     setLibrary(prev => prev.some(t => t.id === trackId) ? prev : [...prev, track]);
@@ -114,7 +125,7 @@ export default function App() {
     setter(prev => {
       // Stop audio engine if it was playing an audio track
       if (prev.track && !prev.track.youtubeId && prev.isPlaying) engine.pause(deckId);
-      return { ...prev, track, isPlaying: false, currentTime: 0, bpm: 0, detectedBpm: 0, duration: 0 };
+      return { ...prev, track, isPlaying: false, currentTime: 0, bpm, detectedBpm: bpm, duration: 0 };
     });
 
     // Load (but don't play) the video in the deck's YouTube player
@@ -124,7 +135,7 @@ export default function App() {
     } else {
       ytPendingRef.current[deckId] = youtubeId;
     }
-  }, [engine]);
+  }, [engine, library]);
 
   const addYouTubeToLibrary = useCallback((youtubeId: string, title: string) => {
     const trackId = `yt-${youtubeId}`;
@@ -138,6 +149,13 @@ export default function App() {
 
   const updateYouTubeTrackTitle = useCallback((youtubeId: string, title: string) => {
     setLibrary(prev => prev.map(t => t.youtubeId === youtubeId ? { ...t, title } : t));
+  }, []);
+
+  const updateYouTubeTrackBpm = useCallback((youtubeId: string, bpm: number) => {
+    setLibrary(prev => prev.map(t => t.youtubeId === youtubeId ? { ...t, bpm } : t));
+    // Also update the deck state if this track is currently loaded
+    setDeckA(prev => prev.track?.youtubeId === youtubeId ? { ...prev, bpm, detectedBpm: bpm } : prev);
+    setDeckB(prev => prev.track?.youtubeId === youtubeId ? { ...prev, bpm, detectedBpm: bpm } : prev);
   }, []);
 
   const togglePlay = useCallback((deckId: 'A' | 'B') => {
@@ -292,7 +310,7 @@ export default function App() {
   useEffect(() => {
     if (!automixActive) return;
     const interval = setInterval(() => {
-      const fadeThreshold = 15;
+      const fadeThreshold = automixFadeTime;
 
       const doTransition = (fromId: 'A' | 'B', toId: 'A' | 'B') => {
         const from = fromId === 'A' ? deckA : deckB;
@@ -306,6 +324,14 @@ export default function App() {
 
         // Start the target deck if it has a track and isn't playing
         if (to.track && !to.isPlaying) {
+          // Apply BPM sync pitch once when starting the incoming deck
+          if (automixBpmSync && from.detectedBpm > 0 && to.detectedBpm > 0 && !bpmSyncAppliedRef.current[toId]) {
+            const rawPitch = ((from.detectedBpm - to.detectedBpm) / to.detectedBpm) * 100;
+            const pitchAdjust = Math.max(MIN_PITCH_ADJUST, Math.min(MAX_PITCH_ADJUST, rawPitch));
+            setTo(prev => ({ ...prev, pitch: pitchAdjust }));
+            engine.setPitch(toId, pitchAdjust);
+            bpmSyncAppliedRef.current[toId] = true;
+          }
           if (to.track.youtubeId) {
             ytPlayersRef.current[toId]?.playVideo();
           } else {
@@ -333,6 +359,7 @@ export default function App() {
           }
           setFrom(prev => ({ ...prev, isPlaying: false }));
           if (!from.track?.youtubeId) engine.seekTo(fromId, 0);
+          bpmSyncAppliedRef.current[fromId] = false;
           // Reset crossfader to center after a short delay
           setTimeout(() => {
             crossfaderRef.current = 0.5;
@@ -347,12 +374,13 @@ export default function App() {
       else if (deckB.isPlaying) doTransition('B', 'A');
     }, 300);
     return () => clearInterval(interval);
-  }, [automixActive, deckA, deckB, engine, applyYtCrossfaderVolumes]);
+  }, [automixActive, automixFadeTime, automixBpmSync, deckA, deckB, engine, applyYtCrossfaderVolumes]);
 
   const ytTracks = library.filter(t => !!t.youtubeId);
+  const localTracks = library.filter(t => !t.youtubeId);
 
   return (
-    <div className="min-h-screen bg-dark-950 text-white flex flex-col">
+    <div className="min-h-screen text-white flex flex-col" style={{ background: '#050508' }}>
       <header className="flex flex-col border-b border-purple-900/30" style={{ background: 'linear-gradient(180deg, #0a0014 0%, #050508 100%)' }}>
         <div className="flex flex-col items-center pt-2 pb-0.5">
           <span className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: '#b44fff', letterSpacing: '0.3em' }}>DEVELOPED by DCR GROUP</span>
@@ -361,10 +389,30 @@ export default function App() {
         <div className="flex items-center justify-between px-6 py-2">
           <Logo />
           <div className="flex items-center gap-4">
-            <AutomixPanel active={automixActive} onToggle={() => setAutomixActive(!automixActive)} />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-purple-400 font-mono">MASTER</span>
-              <input type="range" min="0" max="1" step="0.01" value={mixer.masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} className="slider-neon w-24" />
+            <AutomixPanel
+              active={automixActive}
+              onToggle={() => setAutomixActive(!automixActive)}
+              fadeTime={automixFadeTime}
+              onFadeTimeChange={setAutomixFadeTime}
+              bpmSync={automixBpmSync}
+              onBpmSyncToggle={() => setAutomixBpmSync(v => !v)}
+            />
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-purple-400 font-mono">MASTER</span>
+                <input type="range" min="0" max="1" step="0.01" value={mixer.masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} className="slider-neon w-24" />
+              </div>
+              {/* REC button (decorative) */}
+              <button
+                onClick={() => setIsRecording(r => !r)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest transition-all"
+                style={isRecording
+                  ? { background: 'rgba(255,45,120,0.25)', border: '1px solid rgba(255,45,120,0.7)', color: '#ff2d78', boxShadow: '0 0 12px rgba(255,45,120,0.4)' }
+                  : { background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)', color: '#ff2d78' }}
+              >
+                <span className={isRecording ? 'animate-pulse' : ''} style={{ fontSize: 8 }}>●</span>
+                <span>REC</span>
+              </button>
             </div>
           </div>
         </div>
@@ -390,9 +438,10 @@ export default function App() {
           </div>
           {activeTab === 'library' ? (
             <Library
-              tracks={library.filter(t => !t.youtubeId)}
+              tracks={localTracks}
               onAddTracks={addTracksToLibrary}
               onLoadToDeck={loadTrack}
+              onRemoveTrack={removeFromLibrary}
               deckATrack={deckA.track}
               deckBTrack={deckB.track}
             />
@@ -403,6 +452,7 @@ export default function App() {
               onRemoveTrack={removeFromLibrary}
               onLoadToDeck={loadYouTubeToDeck}
               onUpdateTrackTitle={updateYouTubeTrackTitle}
+              onUpdateTrackBpm={updateYouTubeTrackBpm}
             />
           )}
         </div>

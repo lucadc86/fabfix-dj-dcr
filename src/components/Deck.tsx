@@ -49,7 +49,7 @@ function TurntablePlatter({ rotation, isPlaying, jogActive, accentColor, deckId,
   const strobeCount = 16;
 
   return (
-    <svg width="160" height="160" viewBox="0 0 160 160" style={{ display: 'block' }}>
+    <svg width="200" height="200" viewBox="0 0 160 160" style={{ display: 'block' }}>
       <defs>
         <radialGradient id={`rim-${deckId}`} cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#1a1a2e" />
@@ -257,7 +257,7 @@ export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync,
         {/* Left: Turntable platter */}
         <div className="flex flex-col items-center gap-1 flex-shrink-0">
           <div
-            style={{ cursor: 'grab', userSelect: 'none', width: 160, height: 160 }}
+            style={{ cursor: 'grab', userSelect: 'none', width: 200, height: 200 }}
             onMouseDown={handleJogMouseDown}
             title="Trascina per scratch/nudge"
           >
