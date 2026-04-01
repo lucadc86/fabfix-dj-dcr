@@ -372,21 +372,24 @@ export default function Deck({ deckState, side, onPlay, onCue, onSetCue, onSync,
                     ? `IN: ${formatTime(deckState.loopStart)} → OUT: ${formatTime(deckState.loopEnd)}`
                     : 'Nessun loop impostato'}
                 </div>
-                {/* Loop size shortcuts */}
-                {[0.5, 1, 2, 4].map(bars => (
+                {/* Loop size shortcuts (requires BPM) */}
+                {deckState.detectedBpm > 0 && [0.5, 1, 2, 4].map(bars => (
                   <button
                     key={bars}
                     onClick={() => {
-                      const barLen = deckState.detectedBpm > 0 ? (60 / deckState.detectedBpm) * 4 * bars : bars;
+                      const barLen = (60 / deckState.detectedBpm) * 4 * bars;
                       const start = deckState.currentTime;
                       onLoop(true, start, start + barLen);
                     }}
                     className="py-1 rounded text-[9px] font-bold transition-all"
                     style={{ background: `${accentColor}14`, border: `1px solid ${accentColor}44`, color: `${accentColor}cc` }}
                   >
-                    {bars}
+                    {bars}♩
                   </button>
                 ))}
+                {deckState.detectedBpm === 0 && (
+                  <div className="col-span-2 text-center text-[9px] text-gray-700 py-1">BPM necessario per loop a barre</div>
+                )}
               </div>
             ) : (
               /* Drum pads grid */

@@ -331,7 +331,8 @@ export default function App() {
           } else {
             engine.pause(fromId);
           }
-          setFrom(prev => ({ ...prev, isPlaying: false, currentTime: 0 }));
+          setFrom(prev => ({ ...prev, isPlaying: false }));
+          if (!from.track?.youtubeId) engine.seekTo(fromId, 0);
           // Reset crossfader to center after a short delay
           setTimeout(() => {
             crossfaderRef.current = 0.5;

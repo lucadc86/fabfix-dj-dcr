@@ -89,7 +89,7 @@ export default function EffectsPanel({ engine }: EffectsPanelProps) {
             <span className="text-[10px] font-bold tracking-widest" style={{ color: effect.color }}>{effect.name} PARAMS</span>
             {effect.params.map(param => (
               <div key={param.key} className="flex items-center gap-2">
-                <span className="text-[9px] text-gray-500 w-18">{param.name}</span>
+                <span className="text-[9px] text-gray-500 w-20">{param.name}</span>
                 <input
                   type="range"
                   min={param.min}

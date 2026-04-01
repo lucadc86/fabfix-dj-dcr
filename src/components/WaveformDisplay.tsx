@@ -85,7 +85,7 @@ export default function WaveformDisplay({ track, currentTime, duration, color, i
       }
 
       // Draw loop region
-      if (loopActive && loopEnd > loopStart && duration > 0) {
+        if (loopActive && loopEnd > loopStart && duration > 0) {
         const loopStartSample = (loopStart / duration) * totalSamples;
         const loopEndSample = (loopEnd / duration) * totalSamples;
         const lx1 = playheadX + ((loopStartSample - centerSample) / halfWindow) * (W / 2);
@@ -111,7 +111,7 @@ export default function WaveformDisplay({ track, currentTime, duration, color, i
         const spread = Math.max(1, Math.ceil(halfWindow / (W / 2)));
         for (let s = 0; s < spread; s++) {
           const idx = sampleIdx + s;
-          if (idx < totalSamples) max = Math.max(max, Math.abs(data[idx]));
+          if (idx >= 0 && idx < totalSamples) max = Math.max(max, Math.abs(data[idx]));
         }
 
         const barH = max * H * 0.88;
