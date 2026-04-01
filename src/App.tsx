@@ -33,9 +33,22 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'library' | 'youtube'>('library');
   const engine = engineRef.current;
 
+  // Volume refs for crossfader-aware YouTube volume updates
+  const deckAVolumeRef = useRef(0.8);
+  const deckBVolumeRef = useRef(0.8);
+  const crossfaderRef = useRef(0.5);
+
   // Per-deck YouTube IFrame players (hidden, audio-only output)
   const ytPlayersRef = useRef<{ A: YTPlayerInstance | null; B: YTPlayerInstance | null }>({ A: null, B: null });
   const ytPendingRef = useRef<{ A: string | null; B: string | null }>({ A: null, B: null });
+
+  const applyYtCrossfaderVolumes = useCallback((cf: number) => {
+    const angle = cf * (Math.PI / 2);
+    const gainA = Math.cos(angle);
+    const gainB = Math.sin(angle);
+    ytPlayersRef.current.A?.setVolume(gainA * deckAVolumeRef.current * 100);
+    ytPlayersRef.current.B?.setVolume(gainB * deckBVolumeRef.current * 100);
+  }, []);
 
   // Load YouTube IFrame API once and create a hidden player for each deck
   useEffect(() => {
@@ -84,7 +97,8 @@ export default function App() {
     setter(prev => {
       // Pause the YouTube player if the deck was playing a YouTube track
       if (prev.track?.youtubeId) ytPlayersRef.current[deckId]?.pauseVideo();
-      return { ...prev, track, isPlaying: false, currentTime: 0, bpm: track.bpm || 0, detectedBpm: track.bpm || 0 };
+      const bpm = track.bpm || 0;
+      return { ...prev, track, isPlaying: false, currentTime: 0, bpm, detectedBpm: bpm };
     });
     engine.loadTrack(deckId, track);
   }, [engine]);
@@ -172,9 +186,13 @@ export default function App() {
 
   const setVolume = useCallback((deckId: 'A' | 'B', volume: number) => {
     const setter = deckId === 'A' ? setDeckA : setDeckB;
+    if (deckId === 'A') deckAVolumeRef.current = volume;
+    else deckBVolumeRef.current = volume;
     setter(prev => {
       if (prev.track?.youtubeId) {
-        ytPlayersRef.current[deckId]?.setVolume(volume * 100);
+        const angle = crossfaderRef.current * (Math.PI / 2);
+        const cfGain = deckId === 'A' ? Math.cos(angle) : Math.sin(angle);
+        ytPlayersRef.current[deckId]?.setVolume(volume * cfGain * 100);
       } else {
         engine.setVolume(deckId, volume);
       }
@@ -201,9 +219,12 @@ export default function App() {
   }, [engine]);
 
   const setCrossfader = useCallback((value: number) => {
+    crossfaderRef.current = value;
     setMixer(prev => ({ ...prev, crossfader: value }));
     engine.setCrossfader(value);
-  }, [engine]);
+    // Apply crossfader to YouTube players
+    applyYtCrossfaderVolumes(value);
+  }, [engine, applyYtCrossfaderVolumes]);
 
   const setMasterVolume = useCallback((value: number) => {
     setMixer(prev => ({ ...prev, masterVolume: value }));
@@ -213,6 +234,17 @@ export default function App() {
   const addTracksToLibrary = useCallback((tracks: Track[]) => {
     setLibrary(prev => [...prev, ...tracks]);
   }, []);
+
+  const handleScratch = useCallback((deckId: 'A' | 'B', deltaSeconds: number) => {
+    const deckState = deckId === 'A' ? deckA : deckB;
+    if (deckState.track?.youtubeId) {
+      const newTime = Math.max(0, (deckState.currentTime || 0) + deltaSeconds);
+      ytPlayersRef.current[deckId]?.seekTo(newTime, true);
+    } else {
+      const newTime = Math.max(0, (engine.getCurrentTime(deckId) || 0) + deltaSeconds);
+      engine.seekTo(deckId, newTime);
+    }
+  }, [engine, deckA, deckB]);
 
   // Polling loop: update currentTime/duration from audio engine or YouTube player
   useEffect(() => {
@@ -252,17 +284,33 @@ export default function App() {
     const interval = setInterval(() => {
       const fadeThreshold = 15;
       if (deckA.isPlaying && deckA.duration > 0 && deckA.duration - deckA.currentTime < fadeThreshold) {
-        if (deckB.track && !deckB.isPlaying) { engine.play('B'); setDeckB(prev => ({ ...prev, isPlaying: true })); }
+        if (deckB.track && !deckB.isPlaying) {
+          if (deckB.track.youtubeId) {
+            ytPlayersRef.current.B?.playVideo();
+          } else {
+            engine.play('B');
+          }
+          setDeckB(prev => ({ ...prev, isPlaying: true }));
+        }
         const remaining = deckA.duration - deckA.currentTime;
         const prog = 1 - (remaining / fadeThreshold);
         const newCf = Math.min(1, 0.5 + prog * 0.5);
+        crossfaderRef.current = newCf;
         setMixer(prev => ({ ...prev, crossfader: newCf }));
         engine.setCrossfader(newCf);
-        if (remaining < 1) { engine.pause('A'); setDeckA(prev => ({ ...prev, isPlaying: false })); }
+        applyYtCrossfaderVolumes(newCf);
+        if (remaining < 1) {
+          if (deckA.track?.youtubeId) {
+            ytPlayersRef.current.A?.pauseVideo();
+          } else {
+            engine.pause('A');
+          }
+          setDeckA(prev => ({ ...prev, isPlaying: false }));
+        }
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [automixActive, deckA, deckB, engine]);
+  }, [automixActive, deckA, deckB, engine, applyYtCrossfaderVolumes]);
 
   const ytTracks = library.filter(t => !!t.youtubeId);
 
@@ -293,9 +341,9 @@ export default function App() {
 
       <main className="flex-1 flex flex-col">
         <div className="flex gap-2 p-3" style={{ minHeight: '420px' }}>
-          <div className="flex-1"><Deck deckState={deckA} side="left" onPlay={() => togglePlay('A')} onCue={() => jumpToCue('A')} onSetCue={() => setCue('A')} onSync={() => syncDecks('A')} onVolume={v => setVolume('A', v)} onGain={g => setGain('A', g)} onPitch={p => setPitch('A', p)} onEq={(band, v) => setEq('A', band, v)} /></div>
+          <div className="flex-1"><Deck deckState={deckA} side="left" onPlay={() => togglePlay('A')} onCue={() => jumpToCue('A')} onSetCue={() => setCue('A')} onSync={() => syncDecks('A')} onVolume={v => setVolume('A', v)} onGain={g => setGain('A', g)} onPitch={p => setPitch('A', p)} onEq={(band, v) => setEq('A', band, v)} onScratch={d => handleScratch('A', d)} /></div>
           <div className="w-52 flex-shrink-0"><Mixer mixer={mixer} deckA={deckA} deckB={deckB} onCrossfader={setCrossfader} /></div>
-          <div className="flex-1"><Deck deckState={deckB} side="right" onPlay={() => togglePlay('B')} onCue={() => jumpToCue('B')} onSetCue={() => setCue('B')} onSync={() => syncDecks('B')} onVolume={v => setVolume('B', v)} onGain={g => setGain('B', g)} onPitch={p => setPitch('B', p)} onEq={(band, v) => setEq('B', band, v)} /></div>
+          <div className="flex-1"><Deck deckState={deckB} side="right" onPlay={() => togglePlay('B')} onCue={() => jumpToCue('B')} onSetCue={() => setCue('B')} onSync={() => syncDecks('B')} onVolume={v => setVolume('B', v)} onGain={g => setGain('B', g)} onPitch={p => setPitch('B', p)} onEq={(band, v) => setEq('B', band, v)} onScratch={d => handleScratch('B', d)} /></div>
         </div>
         <div className="px-3 pb-2"><EffectsPanel engine={engine} /></div>
         <div className="flex-1 px-3 pb-3">
