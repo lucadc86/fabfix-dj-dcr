@@ -25,7 +25,7 @@ const DRUM_PADS = [
   { id: 'rimshot', label: 'RIM',     color: '#ffff00' },
   { id: 'cash',    label: 'CASH',    color: '#ff8c00' },
   { id: 'gunshot', label: 'GUNSHOT', color: '#ff2d78' },
-  { id: 'hihat',   label: 'OPEN HH', color: '#44ddff' },
+  { id: 'openhat', label: 'OPEN HH', color: '#44ddff' },
 ] as const;
 
 function formatTime(seconds: number): string {

@@ -366,6 +366,20 @@ export function createAudioEngine() {
         src.start(now); src.stop(now + 0.35);
         break;
       }
+      case 'openhat': {
+        const bufLen = Math.floor(ctx.sampleRate * 0.3);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.1));
+        const noise = ctx.createBufferSource(); noise.buffer = buf;
+        const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 7000;
+        const gain = ctx.createGain();
+        noise.connect(filt); filt.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        noise.start(now); noise.stop(now + 0.32);
+        break;
+      }
       default:
         break;
     }
