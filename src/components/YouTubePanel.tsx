@@ -55,7 +55,6 @@ export default function YouTubePanel({ tracks, onAddTrack, onRemoveTrack, onLoad
     if (playerRef.current) {
       playerRef.current.loadVideoById(videoId);
       playerRef.current.playVideo();
-      setIsPlaying(true);
       return;
     }
     playerRef.current = new window.YT.Player(playerDivId, {

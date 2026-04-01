@@ -271,6 +271,120 @@ export function createAudioEngine() {
     return { A: crossfadeA.gain.value, B: crossfadeB.gain.value };
   }
 
+  function playDrumPad(padId: string) {
+    resumeContext();
+    const now = ctx.currentTime;
+    switch (padId) {
+      case 'kick': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(masterGain);
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.35);
+        gain.gain.setValueAtTime(1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+        break;
+      }
+      case 'snare': {
+        const bufLen = Math.floor(ctx.sampleRate * 0.18);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+        const noise = ctx.createBufferSource(); noise.buffer = buf;
+        const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 800;
+        const gain = ctx.createGain();
+        noise.connect(filt); filt.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(0.85, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        noise.start(now); noise.stop(now + 0.2);
+        break;
+      }
+      case 'clap': {
+        for (let t = 0; t < 3; t++) {
+          const bufLen = Math.floor(ctx.sampleRate * 0.04);
+          const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+          const d = buf.getChannelData(0);
+          for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+          const noise = ctx.createBufferSource(); noise.buffer = buf;
+          const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 1500;
+          const gain = ctx.createGain();
+          noise.connect(filt); filt.connect(gain); gain.connect(masterGain);
+          const startT = now + t * 0.012;
+          gain.gain.setValueAtTime(0.9, startT);
+          gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.08);
+          noise.start(startT); noise.stop(startT + 0.1);
+        }
+        break;
+      }
+      case 'hihat': {
+        const bufLen = Math.floor(ctx.sampleRate * 0.06);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+        const noise = ctx.createBufferSource(); noise.buffer = buf;
+        const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 8000;
+        const gain = ctx.createGain();
+        noise.connect(filt); filt.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(0.7, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        noise.start(now); noise.stop(now + 0.07);
+        break;
+      }
+      case 'rimshot': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square'; osc.frequency.value = 800;
+        osc.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now); osc.stop(now + 0.06);
+        break;
+      }
+      case 'cash': {
+        const bufLen = Math.floor(ctx.sampleRate * 0.5);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.1));
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 3000; filt.Q.value = 5;
+        const gain = ctx.createGain();
+        src.connect(filt); filt.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(0.8, now);
+        src.start(now); src.stop(now + 0.5);
+        break;
+      }
+      case 'gunshot': {
+        const bufLen = Math.floor(ctx.sampleRate * 0.3);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.05));
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const gain = ctx.createGain();
+        src.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(1.0, now);
+        src.start(now); src.stop(now + 0.35);
+        break;
+      }
+      case 'openhat': {
+        const bufLen = Math.floor(ctx.sampleRate * 0.3);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.1));
+        const noise = ctx.createBufferSource(); noise.buffer = buf;
+        const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 7000;
+        const gain = ctx.createGain();
+        noise.connect(filt); filt.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        noise.start(now); noise.stop(now + 0.32);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   function applyEffect(id: string, active: boolean, params: Record<string, number>) {
     switch (id) {
       case 'filter': {
@@ -315,7 +429,7 @@ export function createAudioEngine() {
 
   setCrossfader(0.5);
 
-  return { loadTrack, play, pause, seekTo, setCue, getCurrentTime, getDuration, setVolume, setGain, setPitch, setEq, setCrossfader, setMasterVolume, getAnalyzer, loadAudioFile, getContext, getCrossfaderGains, applyEffect };
+  return { loadTrack, play, pause, seekTo, setCue, getCurrentTime, getDuration, setVolume, setGain, setPitch, setEq, setCrossfader, setMasterVolume, getAnalyzer, loadAudioFile, getContext, getCrossfaderGains, applyEffect, playDrumPad };
 }
 
 export type AudioEngine = ReturnType<typeof createAudioEngine>;

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import type { DeckState, MixerState } from '../types';
 
 interface MixerProps {
@@ -26,8 +27,17 @@ function VUMeter({ level, color }: { level: number; color: string }) {
 }
 
 export default function Mixer({ mixer, deckA, deckB, onCrossfader }: MixerProps) {
-  const levelA = deckA.isPlaying ? deckA.volume * 0.85 + Math.random() * 0.1 : 0;
-  const levelB = deckB.isPlaying ? deckB.volume * 0.85 + Math.random() * 0.1 : 0;
+  const [levelA, setLevelA] = useState(0);
+  const [levelB, setLevelB] = useState(0);
+
+  // Animate VU meters inside an effect to keep render pure
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLevelA(deckA.isPlaying ? deckA.volume * 0.85 + Math.random() * 0.1 : 0);
+      setLevelB(deckB.isPlaying ? deckB.volume * 0.85 + Math.random() * 0.1 : 0);
+    }, 80);
+    return () => clearInterval(interval);
+  }, [deckA.isPlaying, deckA.volume, deckB.isPlaying, deckB.volume]);
 
   return (
     <div className="h-full flex flex-col neon-border rounded-xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #050508 100%)' }}>
