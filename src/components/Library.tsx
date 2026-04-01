@@ -1,13 +1,10 @@
 import { useRef, useCallback, useState } from 'react';
 import type { Track } from '../types';
-import YouTubePanel from './YouTubePanel';
 
 interface LibraryProps {
   tracks: Track[];
   onAddTracks: (tracks: Track[]) => void;
   onLoadToDeck: (deckId: 'A' | 'B', track: Track) => void;
-  onLoadYouTubeToDeck: (deckId: 'A' | 'B', youtubeId: string, title: string) => void;
-  activeTab: 'library' | 'youtube';
   deckATrack: Track | null;
   deckBTrack: Track | null;
 }
@@ -28,11 +25,12 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function Library({ tracks, onAddTracks, onLoadToDeck, onLoadYouTubeToDeck, activeTab, deckATrack, deckBTrack }: LibraryProps) {
+export default function Library({ tracks, onAddTracks, onLoadToDeck, deckATrack, deckBTrack }: LibraryProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const processFiles = useCallback(async (files: FileList) => {
     setLoading(true);
@@ -67,18 +65,34 @@ export default function Library({ tracks, onAddTracks, onLoadToDeck, onLoadYouTu
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
   const handleDragLeave = useCallback(() => { setIsDragging(false); }, []);
 
-  if (activeTab === 'youtube') {
-    return <YouTubePanel onLoadToDeck={onLoadYouTubeToDeck} />;
-  }
+  const filteredTracks = searchQuery.trim()
+    ? tracks.filter(t =>
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.artist.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : tracks;
 
   return (
     <div className={`neon-border rounded-xl rounded-tl-none overflow-hidden h-full flex flex-col transition-all ${isDragging ? 'border-purple-500' : ''}`} style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #050508 100%)', minHeight: 120 }} onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
       <div className="flex items-center gap-3 px-4 py-2 border-b border-purple-900/30">
-        <button onClick={() => fileInputRef.current?.click()} className="btn-neon px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-wider" disabled={loading}>{loading ? '⏳ CARICAMENTO...' : '+ AGGIUNGI FILE'}</button>
+        <button onClick={() => fileInputRef.current?.click()} className="btn-neon px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-wider flex-shrink-0" disabled={loading}>{loading ? '⏳ CARICAMENTO...' : '+ AGGIUNGI FILE'}</button>
         <input ref={fileInputRef} type="file" accept="audio/*" multiple className="hidden" onChange={handleFileInput} />
-        <span className="text-[10px] text-gray-600">{tracks.length === 0 ? 'Trascina file audio o clicca Aggiungi File' : `${tracks.length} brano${tracks.length === 1 ? '' : 'i'}`}</span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="🔍 Cerca brani..."
+          className="flex-1 min-w-0 bg-transparent text-xs text-white placeholder-gray-700 outline-none border border-purple-900/30 rounded px-2 py-1 focus:border-purple-600/60 transition-colors"
+        />
+        <span className="text-[10px] text-gray-600 flex-shrink-0">
+          {tracks.length === 0
+            ? 'Trascina file audio o clicca Aggiungi File'
+            : searchQuery.trim()
+              ? `${filteredTracks.length}/${tracks.length} brani`
+              : `${tracks.length} brano${tracks.length === 1 ? '' : 'i'}`}
+        </span>
         {selectedTrack && (
-          <div className="flex gap-2 ml-auto">
+          <div className="flex gap-2 flex-shrink-0">
             <button onClick={() => { const t = tracks.find(tr => tr.id === selectedTrack); if (t) onLoadToDeck('A', t); }} className="btn-cue px-3 py-1 rounded text-[10px] font-bold">CARICA → A</button>
             <button onClick={() => { const t = tracks.find(tr => tr.id === selectedTrack); if (t) onLoadToDeck('B', t); }} className="px-3 py-1 rounded text-[10px] font-bold transition-all" style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#ff2d78' }}>CARICA → B</button>
           </div>
@@ -90,9 +104,14 @@ export default function Library({ tracks, onAddTracks, onLoadToDeck, onLoadYouTu
             <div className="text-3xl">{isDragging ? '🎵' : '📂'}</div>
             <span className="text-xs text-gray-500">{isDragging ? 'Rilascia per aggiungere brani' : 'Nessun brano caricato'}</span>
           </div>
+        ) : filteredTracks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-24 gap-2 opacity-50">
+            <div className="text-3xl">🔍</div>
+            <span className="text-xs text-gray-500">Nessun brano corrisponde alla ricerca</span>
+          </div>
         ) : (
           <div className="divide-y divide-purple-900/10">
-            {tracks.map((track, i) => {
+            {filteredTracks.map((track, i) => {
               const isOnA = deckATrack?.id === track.id;
               const isOnB = deckBTrack?.id === track.id;
               const isSelected = selectedTrack === track.id;

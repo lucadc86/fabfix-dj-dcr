@@ -5,45 +5,138 @@ import Mixer from './components/Mixer';
 import Library from './components/Library';
 import EffectsPanel from './components/EffectsPanel';
 import AutomixPanel from './components/AutomixPanel';
-import type { Track, DeckState, MixerState } from './types';
+import YouTubePanel from './components/YouTubePanel';
+import type { Track, DeckState, MixerState, YTPlayerInstance } from './types';
 import { createAudioEngine } from './audio/engine';
+import { loadYouTubeAPI } from './audio/youtube';
+
+const YT_LIBRARY_KEY = 'yt-library';
+
+function loadYtLibraryFromStorage(): Track[] {
+  try {
+    const stored = localStorage.getItem(YT_LIBRARY_KEY);
+    if (stored) {
+      const arr = JSON.parse(stored) as Array<{ id: string; youtubeId: string; title: string }>;
+      return arr.map(t => ({ id: t.id, title: t.title, artist: 'YouTube', duration: 0, bpm: 0, youtubeId: t.youtubeId, color: '#ff2d78' }));
+    }
+  } catch { /* ignore */ }
+  return [];
+}
 
 export default function App() {
   const engineRef = useRef(createAudioEngine());
   const [deckA, setDeckA] = useState<DeckState>({ id: 'A', track: null, isPlaying: false, volume: 0.8, pitch: 0, bpm: 0, detectedBpm: 0, cuePoint: 0, currentTime: 0, duration: 0, loop: false, loopStart: 0, loopEnd: 0, eq: { low: 0, mid: 0, high: 0 }, gain: 0.8 });
   const [deckB, setDeckB] = useState<DeckState>({ id: 'B', track: null, isPlaying: false, volume: 0.8, pitch: 0, bpm: 0, detectedBpm: 0, cuePoint: 0, currentTime: 0, duration: 0, loop: false, loopStart: 0, loopEnd: 0, eq: { low: 0, mid: 0, high: 0 }, gain: 0.8 });
   const [mixer, setMixer] = useState<MixerState>({ crossfader: 0.5, masterVolume: 0.9 });
-  const [library, setLibrary] = useState<Track[]>([]);
+  const [library, setLibrary] = useState<Track[]>(loadYtLibraryFromStorage);
   const [automixActive, setAutomixActive] = useState(false);
   const [activeTab, setActiveTab] = useState<'library' | 'youtube'>('library');
   const engine = engineRef.current;
 
+  // Per-deck YouTube IFrame players (hidden, audio-only output)
+  const ytPlayersRef = useRef<{ A: YTPlayerInstance | null; B: YTPlayerInstance | null }>({ A: null, B: null });
+  const ytPendingRef = useRef<{ A: string | null; B: string | null }>({ A: null, B: null });
+
+  // Load YouTube IFrame API once and create a hidden player for each deck
+  useEffect(() => {
+    loadYouTubeAPI(() => {
+      (['A', 'B'] as const).forEach(deckId => {
+        const setter = deckId === 'A' ? setDeckA : setDeckB;
+        ytPlayersRef.current[deckId] = new window.YT.Player(`yt-deck-${deckId}`, {
+          height: '2',
+          width: '2',
+          playerVars: { autoplay: 0, controls: 0, rel: 0, playsinline: 1 },
+          events: {
+            onReady: () => {
+              const pending = ytPendingRef.current[deckId];
+              if (pending) {
+                ytPlayersRef.current[deckId]?.cueVideoById(pending);
+                ytPendingRef.current[deckId] = null;
+              }
+            },
+            onStateChange: (e) => {
+              // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
+              if (e.data === 1) setter(prev => ({ ...prev, isPlaying: true }));
+              else if (e.data === 2 || e.data === 0) setter(prev => ({ ...prev, isPlaying: false }));
+            },
+          },
+        });
+      });
+    });
+    return () => {
+      const playerA = ytPlayersRef.current.A;
+      const playerB = ytPlayersRef.current.B;
+      playerA?.destroy();
+      playerB?.destroy();
+    };
+  }, []);
+
+  // Persist YouTube tracks to localStorage whenever the library changes
+  useEffect(() => {
+    const ytTracks = library
+      .filter(t => !!t.youtubeId)
+      .map(t => ({ id: t.id, youtubeId: t.youtubeId!, title: t.title }));
+    localStorage.setItem(YT_LIBRARY_KEY, JSON.stringify(ytTracks));
+  }, [library]);
+
   const loadTrack = useCallback((deckId: 'A' | 'B', track: Track) => {
     const setter = deckId === 'A' ? setDeckA : setDeckB;
-    setter(prev => ({ ...prev, track, isPlaying: false, currentTime: 0, bpm: track.bpm || 0, detectedBpm: track.bpm || 0 }));
+    setter(prev => {
+      // Pause the YouTube player if the deck was playing a YouTube track
+      if (prev.track?.youtubeId) ytPlayersRef.current[deckId]?.pauseVideo();
+      return { ...prev, track, isPlaying: false, currentTime: 0, bpm: track.bpm || 0, detectedBpm: track.bpm || 0 };
+    });
     engine.loadTrack(deckId, track);
   }, [engine]);
 
   const loadYouTubeToDeck = useCallback((deckId: 'A' | 'B', youtubeId: string, title: string) => {
-    const track: Track = {
-      id: `yt-${youtubeId}`,
-      title,
-      artist: 'YouTube',
-      duration: 0,
-      bpm: 0,
-      youtubeId,
-      color: '#ff2d78',
-    };
+    const trackId = `yt-${youtubeId}`;
+    const track: Track = { id: trackId, title, artist: 'YouTube', duration: 0, bpm: 0, youtubeId, color: '#ff2d78' };
+
+    // Add to global library if not already present
+    setLibrary(prev => prev.some(t => t.id === trackId) ? prev : [...prev, track]);
+
     const setter = deckId === 'A' ? setDeckA : setDeckB;
-    setter(prev => ({ ...prev, track, isPlaying: false, currentTime: 0, bpm: 0, detectedBpm: 0 }));
-    // YouTube tracks play via the IFrame player in YouTubePanel, not via the audio engine
+    setter(prev => {
+      // Stop audio engine if it was playing an audio track
+      if (prev.track && !prev.track.youtubeId && prev.isPlaying) engine.pause(deckId);
+      return { ...prev, track, isPlaying: false, currentTime: 0, bpm: 0, detectedBpm: 0, duration: 0 };
+    });
+
+    // Load (but don't play) the video in the deck's YouTube player
+    const player = ytPlayersRef.current[deckId];
+    if (player) {
+      try { player.cueVideoById(youtubeId); } catch { ytPendingRef.current[deckId] = youtubeId; }
+    } else {
+      ytPendingRef.current[deckId] = youtubeId;
+    }
+  }, [engine]);
+
+  const addYouTubeToLibrary = useCallback((youtubeId: string, title: string) => {
+    const trackId = `yt-${youtubeId}`;
+    const track: Track = { id: trackId, title, artist: 'YouTube', duration: 0, bpm: 0, youtubeId, color: '#ff2d78' };
+    setLibrary(prev => prev.some(t => t.id === trackId) ? prev : [...prev, track]);
+  }, []);
+
+  const removeFromLibrary = useCallback((trackId: string) => {
+    setLibrary(prev => prev.filter(t => t.id !== trackId));
+  }, []);
+
+  const updateYouTubeTrackTitle = useCallback((youtubeId: string, title: string) => {
+    setLibrary(prev => prev.map(t => t.youtubeId === youtubeId ? { ...t, title } : t));
   }, []);
 
   const togglePlay = useCallback((deckId: 'A' | 'B') => {
     const setter = deckId === 'A' ? setDeckA : setDeckB;
     setter(prev => {
       const newPlaying = !prev.isPlaying;
-      if (newPlaying) engine.play(deckId); else engine.pause(deckId);
+      if (prev.track?.youtubeId) {
+        // Route play/pause to the deck's YouTube IFrame player
+        const player = ytPlayersRef.current[deckId];
+        if (player) { if (newPlaying) player.playVideo(); else player.pauseVideo(); }
+      } else {
+        if (newPlaying) engine.play(deckId); else engine.pause(deckId);
+      }
       return { ...prev, isPlaying: newPlaying };
     });
   }, [engine]);
@@ -55,9 +148,14 @@ export default function App() {
 
   const jumpToCue = useCallback((deckId: 'A' | 'B') => {
     const deckState = deckId === 'A' ? deckA : deckB;
-    engine.seekTo(deckId, deckState.cuePoint);
     const setter = deckId === 'A' ? setDeckA : setDeckB;
-    setter(prev => ({ ...prev, currentTime: prev.cuePoint }));
+    if (deckState.track?.youtubeId) {
+      ytPlayersRef.current[deckId]?.seekTo(deckState.cuePoint, true);
+      setter(prev => ({ ...prev, currentTime: prev.cuePoint }));
+    } else {
+      engine.seekTo(deckId, deckState.cuePoint);
+      setter(prev => ({ ...prev, currentTime: prev.cuePoint }));
+    }
   }, [engine, deckA, deckB]);
 
   const syncDecks = useCallback((targetId: 'A' | 'B') => {
@@ -74,8 +172,14 @@ export default function App() {
 
   const setVolume = useCallback((deckId: 'A' | 'B', volume: number) => {
     const setter = deckId === 'A' ? setDeckA : setDeckB;
-    setter(prev => ({ ...prev, volume }));
-    engine.setVolume(deckId, volume);
+    setter(prev => {
+      if (prev.track?.youtubeId) {
+        ytPlayersRef.current[deckId]?.setVolume(volume * 100);
+      } else {
+        engine.setVolume(deckId, volume);
+      }
+      return { ...prev, volume };
+    });
   }, [engine]);
 
   const setGain = useCallback((deckId: 'A' | 'B', gain: number) => {
@@ -110,10 +214,35 @@ export default function App() {
     setLibrary(prev => [...prev, ...tracks]);
   }, []);
 
+  // Polling loop: update currentTime/duration from audio engine or YouTube player
   useEffect(() => {
     const interval = setInterval(() => {
-      setDeckA(prev => ({ ...prev, currentTime: engine.getCurrentTime('A'), duration: engine.getDuration('A') }));
-      setDeckB(prev => ({ ...prev, currentTime: engine.getCurrentTime('B'), duration: engine.getDuration('B') }));
+      setDeckA(prev => {
+        if (prev.track?.youtubeId) {
+          const player = ytPlayersRef.current.A;
+          if (!player) return prev;
+          try {
+            const currentTime = player.getCurrentTime();
+            const duration = player.getDuration();
+            if (currentTime === prev.currentTime && duration === prev.duration) return prev;
+            return { ...prev, currentTime, duration };
+          } catch { return prev; }
+        }
+        return { ...prev, currentTime: engine.getCurrentTime('A'), duration: engine.getDuration('A') };
+      });
+      setDeckB(prev => {
+        if (prev.track?.youtubeId) {
+          const player = ytPlayersRef.current.B;
+          if (!player) return prev;
+          try {
+            const currentTime = player.getCurrentTime();
+            const duration = player.getDuration();
+            if (currentTime === prev.currentTime && duration === prev.duration) return prev;
+            return { ...prev, currentTime, duration };
+          } catch { return prev; }
+        }
+        return { ...prev, currentTime: engine.getCurrentTime('B'), duration: engine.getDuration('B') };
+      });
     }, 100);
     return () => clearInterval(interval);
   }, [engine]);
@@ -135,18 +264,33 @@ export default function App() {
     return () => clearInterval(interval);
   }, [automixActive, deckA, deckB, engine]);
 
+  const ytTracks = library.filter(t => !!t.youtubeId);
+
   return (
     <div className="min-h-screen bg-dark-950 text-white flex flex-col">
-      <header className="flex items-center justify-between px-6 py-3 border-b border-purple-900/30" style={{ background: 'linear-gradient(180deg, #0a0014 0%, #050508 100%)' }}>
-        <Logo />
-        <div className="flex items-center gap-4">
-          <AutomixPanel active={automixActive} onToggle={() => setAutomixActive(!automixActive)} />
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-purple-400 font-mono">MASTER</span>
-            <input type="range" min="0" max="1" step="0.01" value={mixer.masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} className="slider-neon w-24" />
+      <header className="flex flex-col border-b border-purple-900/30" style={{ background: 'linear-gradient(180deg, #0a0014 0%, #050508 100%)' }}>
+        <div className="flex flex-col items-center pt-2 pb-0.5">
+          <span className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: '#b44fff', letterSpacing: '0.3em' }}>DEVELOPED by DCR GROUP</span>
+          <span className="text-[9px] tracking-[0.25em] text-purple-500 font-medium uppercase">for LUNI DI PASQUA EDITION</span>
+        </div>
+        <div className="flex items-center justify-between px-6 py-2">
+          <Logo />
+          <div className="flex items-center gap-4">
+            <AutomixPanel active={automixActive} onToggle={() => setAutomixActive(!automixActive)} />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-purple-400 font-mono">MASTER</span>
+              <input type="range" min="0" max="1" step="0.01" value={mixer.masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} className="slider-neon w-24" />
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Hidden per-deck YouTube players – produce audio without visible video */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, width: 2, height: 4, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
+        <div id="yt-deck-A" />
+        <div id="yt-deck-B" />
+      </div>
+
       <main className="flex-1 flex flex-col">
         <div className="flex gap-2 p-3" style={{ minHeight: '420px' }}>
           <div className="flex-1"><Deck deckState={deckA} side="left" onPlay={() => togglePlay('A')} onCue={() => jumpToCue('A')} onSetCue={() => setCue('A')} onSync={() => syncDecks('A')} onVolume={v => setVolume('A', v)} onGain={g => setGain('A', g)} onPitch={p => setPitch('A', p)} onEq={(band, v) => setEq('A', band, v)} /></div>
@@ -159,7 +303,23 @@ export default function App() {
             <button onClick={() => setActiveTab('library')} className={`px-4 py-1.5 text-xs font-semibold rounded-t-lg transition-all ${activeTab === 'library' ? 'bg-purple-900/50 text-purple-300 border border-purple-700/50 border-b-transparent' : 'text-gray-500 hover:text-purple-400'}`}>📁 LIBRERIA</button>
             <button onClick={() => setActiveTab('youtube')} className={`px-4 py-1.5 text-xs font-semibold rounded-t-lg transition-all ${activeTab === 'youtube' ? 'bg-purple-900/50 text-purple-300 border border-purple-700/50 border-b-transparent' : 'text-gray-500 hover:text-purple-400'}`}>▶ YOUTUBE</button>
           </div>
-          <Library tracks={library} onAddTracks={addTracksToLibrary} onLoadToDeck={loadTrack} onLoadYouTubeToDeck={loadYouTubeToDeck} activeTab={activeTab} deckATrack={deckA.track} deckBTrack={deckB.track} />
+          {activeTab === 'library' ? (
+            <Library
+              tracks={library.filter(t => !t.youtubeId)}
+              onAddTracks={addTracksToLibrary}
+              onLoadToDeck={loadTrack}
+              deckATrack={deckA.track}
+              deckBTrack={deckB.track}
+            />
+          ) : (
+            <YouTubePanel
+              tracks={ytTracks}
+              onAddTrack={addYouTubeToLibrary}
+              onRemoveTrack={removeFromLibrary}
+              onLoadToDeck={loadYouTubeToDeck}
+              onUpdateTrackTitle={updateYouTubeTrackTitle}
+            />
+          )}
         </div>
       </main>
     </div>

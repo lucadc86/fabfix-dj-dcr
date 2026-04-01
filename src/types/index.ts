@@ -1,3 +1,40 @@
+export interface YTPlayerInstance {
+  loadVideoById(videoId: string): void;
+  cueVideoById(videoId: string): void;
+  playVideo(): void;
+  pauseVideo(): void;
+  stopVideo(): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
+  getVideoData(): { title: string; video_id: string };
+  getDuration(): number;
+  getCurrentTime(): number;
+  getPlayerState(): number;
+  setVolume(volume: number): void;
+  destroy(): void;
+}
+
+declare global {
+  interface Window {
+    YT: {
+      Player: new (
+        elementId: string,
+        options: {
+          height?: string | number;
+          width?: string | number;
+          videoId?: string;
+          playerVars?: Record<string, string | number>;
+          events?: {
+            onReady?: (event: { target: YTPlayerInstance }) => void;
+            onStateChange?: (event: { data: number }) => void;
+          };
+        }
+      ) => YTPlayerInstance;
+      PlayerState: { PLAYING: number; PAUSED: number; ENDED: number };
+    };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
 export interface Track {
   id: string;
   title: string;
