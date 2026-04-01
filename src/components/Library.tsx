@@ -14,8 +14,51 @@ function trackColor(index: number): string {
   return colors[index % colors.length];
 }
 
-function estimateBpm(): number {
-  return Math.floor(Math.random() * 60) + 100;
+function detectBpm(audioBuffer: AudioBuffer): number {
+  const sampleRate = audioBuffer.sampleRate;
+  const data = audioBuffer.getChannelData(0);
+  // Analyze first 60 seconds max
+  const maxSamples = Math.min(data.length, sampleRate * 60);
+  // Frame size ~23ms for energy analysis
+  const frameSize = Math.floor(sampleRate * 0.023);
+  const energies: number[] = [];
+  for (let i = 0; i < maxSamples - frameSize; i += frameSize) {
+    let e = 0;
+    for (let j = 0; j < frameSize; j++) e += data[i + j] * data[i + j];
+    energies.push(e / frameSize);
+  }
+  if (energies.length < 4) return 0;
+  // Onset detection: positive energy differences
+  const onsets: number[] = energies.map((e, i) => i === 0 ? 0 : Math.max(0, e - energies[i - 1]));
+  const mean = onsets.reduce((a, b) => a + b, 0) / onsets.length;
+  const threshold = mean * 2.5;
+  const minGap = Math.floor(sampleRate * 0.25 / frameSize); // min 250ms between beats
+  const peaks: number[] = [];
+  let lastPeak = -minGap;
+  for (let i = 1; i < onsets.length - 1; i++) {
+    if (onsets[i] > onsets[i - 1] && onsets[i] > onsets[i + 1] && onsets[i] > threshold && i - lastPeak > minGap) {
+      peaks.push(i);
+      lastPeak = i;
+    }
+  }
+  if (peaks.length < 4) return 0;
+  const intervals: number[] = [];
+  for (let i = 1; i < peaks.length; i++) {
+    const secs = (peaks[i] - peaks[i - 1]) * frameSize / sampleRate;
+    const bpm = Math.round(60 / secs);
+    if (bpm >= 60 && bpm <= 200) intervals.push(bpm);
+  }
+  if (intervals.length === 0) return 0;
+  const counts: Record<number, number> = {};
+  for (const bpm of intervals) {
+    const key = Math.round(bpm / 2) * 2; // bucket into 2-BPM bins
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  let best = 0, bestCount = 0;
+  for (const [k, c] of Object.entries(counts)) {
+    if (c > bestCount) { bestCount = c; best = parseInt(k); }
+  }
+  return best || Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length);
 }
 
 function formatDuration(seconds: number): string {
@@ -52,7 +95,7 @@ export default function Library({ tracks, onAddTracks, onLoadToDeck, deckATrack,
           for (let k = 0; k < blockSize; k++) max = Math.max(max, Math.abs(rawData[start + k] || 0));
           waveformData[j] = max;
         }
-        newTracks.push({ id: `${Date.now()}-${i}`, title: file.name.replace(/\.[^/.]+$/, ''), artist: 'Artista Sconosciuto', duration: audioBuffer.duration, bpm: estimateBpm(), file, audioBuffer, waveformData, color: trackColor(tracks.length + newTracks.length) });
+        newTracks.push({ id: `${Date.now()}-${i}`, title: file.name.replace(/\.[^/.]+$/, ''), artist: 'Artista Sconosciuto', duration: audioBuffer.duration, bpm: detectBpm(audioBuffer), file, audioBuffer, waveformData, color: trackColor(tracks.length + newTracks.length) });
       } catch (e) { console.error('Failed to decode audio:', file.name, e); }
     }
     await audioCtx.close();

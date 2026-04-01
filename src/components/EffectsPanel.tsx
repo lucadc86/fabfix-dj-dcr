@@ -16,22 +16,35 @@ interface EffectsPanelProps {
 const INITIAL_EFFECTS: Effect[] = [
   { id: 'filter', name: 'FILTRO', active: false, color: '#b44fff', params: [{ name: 'Taglio', key: 'cutoff', min: 20, max: 20000, value: 2000, unit: 'Hz' }, { name: 'Risonanza', key: 'resonance', min: 0.1, max: 20, value: 1, unit: 'Q' }] },
   { id: 'echo', name: 'ECO', active: false, color: '#00f5ff', params: [{ name: 'Ritardo', key: 'delay', min: 0.05, max: 1, value: 0.3, unit: 's' }, { name: 'Feedback', key: 'feedback', min: 0, max: 0.9, value: 0.4, unit: '' }, { name: 'Mix', key: 'wet', min: 0, max: 1, value: 0.3, unit: '' }] },
-  { id: 'reverb', name: 'REVERB', active: false, color: '#ff2d78', params: [{ name: 'Stanza', key: 'room', min: 0, max: 1, value: 0.5, unit: '' }, { name: 'Smorzamento', key: 'damping', min: 0, max: 1, value: 0.3, unit: '' }, { name: 'Mix', key: 'wet', min: 0, max: 1, value: 0.3, unit: '' }] },
-  { id: 'flanger', name: 'FLANGER', active: false, color: '#39ff14', params: [{ name: 'Velocità', key: 'rate', min: 0.1, max: 5, value: 0.5, unit: 'Hz' }, { name: 'Profondità', key: 'depth', min: 0, max: 1, value: 0.5, unit: '' }, { name: 'Feedback', key: 'feedback', min: 0, max: 0.9, value: 0.3, unit: '' }] },
-  { id: 'bitcrush', name: 'BITCRUSH', active: false, color: '#ffa500', params: [{ name: 'Bit', key: 'bits', min: 1, max: 16, value: 8, unit: 'bit' }, { name: 'Velocità', key: 'rate', min: 0.1, max: 1, value: 0.5, unit: '' }] },
+  { id: 'reverb', name: 'REVERB', active: false, color: '#ff2d78', params: [{ name: 'Mix', key: 'wet', min: 0, max: 1, value: 0.3, unit: '' }] },
+  { id: 'flanger', name: 'FLANGER', active: false, color: '#39ff14', params: [{ name: 'Velocità', key: 'rate', min: 0.1, max: 5, value: 0.5, unit: 'Hz' }, { name: 'Profondità', key: 'depth', min: 0, max: 1, value: 0.5, unit: '' }] },
+  { id: 'bitcrush', name: 'BITCRUSH', active: false, color: '#ffa500', params: [{ name: 'Bit', key: 'bits', min: 1, max: 16, value: 8, unit: 'bit' }] },
 ];
 
-export default function EffectsPanel({ engine: _engine }: EffectsPanelProps) {
+export default function EffectsPanel({ engine }: EffectsPanelProps) {
   const [effects, setEffects] = useState<Effect[]>(INITIAL_EFFECTS);
   const [expandedEffect, setExpandedEffect] = useState<string | null>(null);
 
+  const getParams = (effect: Effect): Record<string, number> =>
+    Object.fromEntries(effect.params.map(p => [p.key, p.value]));
+
   const toggleEffect = useCallback((id: string) => {
-    setEffects(prev => prev.map(e => e.id === id ? { ...e, active: !e.active } : e));
-  }, []);
+    setEffects(prev => {
+      const next = prev.map(e => e.id === id ? { ...e, active: !e.active } : e);
+      const updated = next.find(e => e.id === id)!;
+      engine.applyEffect(id, updated.active, getParams(updated));
+      return next;
+    });
+  }, [engine]);
 
   const updateParam = useCallback((effectId: string, paramKey: string, value: number) => {
-    setEffects(prev => prev.map(e => e.id !== effectId ? e : { ...e, params: e.params.map(p => p.key === paramKey ? { ...p, value } : p) }));
-  }, []);
+    setEffects(prev => {
+      const next = prev.map(e => e.id !== effectId ? e : { ...e, params: e.params.map(p => p.key === paramKey ? { ...p, value } : p) });
+      const updated = next.find(e => e.id === effectId)!;
+      if (updated.active) engine.applyEffect(effectId, true, getParams(updated));
+      return next;
+    });
+  }, [engine]);
 
   return (
     <div className="neon-border rounded-xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #050508 100%)' }}>

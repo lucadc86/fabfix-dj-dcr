@@ -17,7 +17,7 @@ export default function Logo() {
           <span className="text-xl font-black" style={{ background: 'linear-gradient(135deg, #b44fff 0%, #ff2d78 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '0.1em', fontFamily: "'Space Grotesk', Inter, sans-serif" }}>DJ</span>
           <span className="text-xl font-black tracking-widest" style={{ background: 'linear-gradient(135deg, #00f5ff 0%, #b44fff 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '0.15em', fontFamily: "'Space Grotesk', Inter, sans-serif" }}>DCR</span>
         </div>
-        <span className="text-[9px] tracking-[0.4em] text-purple-500 font-medium uppercase mt-0.5">Software Professionale DCR Group</span>
+        <span className="text-[9px] tracking-[0.4em] text-purple-500 font-medium uppercase mt-0.5">SOFTWARE GESTIONALI DCR GROUP</span>
       </div>
     </div>
   );

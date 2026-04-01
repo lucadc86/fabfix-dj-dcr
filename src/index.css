@@ -205,11 +205,46 @@ body {
   50% { height: 80%; }
 }
 
-.vinyl-grooves {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 1px solid rgba(180, 79, 255, 0.08);
+.slider-vertical {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  background: rgba(180, 79, 255, 0.15);
+  border-radius: 4px;
+  width: 6px;
+  cursor: ns-resize;
+  outline: none;
 }
+
+.slider-vertical::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #b44fff;
+  cursor: ns-resize;
+  box-shadow: 0 0 8px rgba(180, 79, 255, 0.6);
+}
+
+.slider-vertical.cyan {
+  background: rgba(0, 245, 255, 0.15);
+}
+
+.slider-vertical.cyan::-webkit-slider-thumb {
+  background: #00f5ff;
+  box-shadow: 0 0 8px rgba(0, 245, 255, 0.6);
+}
+
+.btn-set {
+  background: rgba(255, 165, 0, 0.1);
+  border: 1px solid rgba(255, 165, 0, 0.3);
+  color: #ffa500;
+  transition: all 0.15s ease;
+}
+
+.btn-set:hover {
+  background: rgba(255, 165, 0, 0.25);
+  box-shadow: 0 0 12px rgba(255, 165, 0, 0.4);
+}
+
