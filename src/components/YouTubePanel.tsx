@@ -8,6 +8,7 @@ interface YouTubePanelProps {
   onRemoveTrack: (trackId: string) => void;
   onLoadToDeck: (deckId: 'A' | 'B', youtubeId: string, title: string) => void;
   onUpdateTrackTitle: (youtubeId: string, title: string) => void;
+  onUpdateTrackBpm: (youtubeId: string, bpm: number) => void;
 }
 
 function extractVideoId(url: string): string | null {
@@ -22,7 +23,12 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-export default function YouTubePanel({ tracks, onAddTrack, onRemoveTrack, onLoadToDeck, onUpdateTrackTitle }: YouTubePanelProps) {
+const TAP_RESET_TIMEOUT_MS = 3000;
+const MS_PER_MINUTE = 60000;
+const MIN_BPM = 40;
+const MAX_BPM = 250;
+
+export default function YouTubePanel({ tracks, onAddTrack, onRemoveTrack, onLoadToDeck, onUpdateTrackTitle, onUpdateTrackBpm }: YouTubePanelProps) {
   const [urlInput, setUrlInput] = useState('');
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,6 +38,11 @@ export default function YouTubePanel({ tracks, onAddTrack, onRemoveTrack, onLoad
   const playerRef = useRef<import('../types').YTPlayerInstance | null>(null);
   const currentVideoIdRef = useRef<string | null>(null);
   const playerDivId = 'yt-preview-player';
+
+  // TAP BPM: maps youtubeId -> list of recent tap timestamps
+  const tapTimesRef = useRef<Record<string, number[]>>({});
+  // Manual BPM input state: maps youtubeId -> current input string
+  const [bpmInputs, setBpmInputs] = useState<Record<string, string>>({});
 
   const selectedTrack = tracks.find(t => t.youtubeId === selectedYoutubeId) ?? null;
 
@@ -109,6 +120,37 @@ export default function YouTubePanel({ tracks, onAddTrack, onRemoveTrack, onLoad
     else { playerRef.current.playVideo(); }
   }, []);
 
+  // TAP BPM: record tap timestamps and compute average BPM from last 8 taps
+  const handleTap = useCallback((youtubeId: string) => {
+    const now = performance.now();
+    const prev = tapTimesRef.current[youtubeId] ?? [];
+    // Keep last 8 timestamps; reset if gap > TAP_RESET_TIMEOUT_MS
+    const recent = prev.length > 0 && (now - prev[prev.length - 1]) > TAP_RESET_TIMEOUT_MS ? [now] : [...prev.slice(-7), now];
+    tapTimesRef.current[youtubeId] = recent;
+    if (recent.length < 2) return;
+    const intervals: number[] = [];
+    for (let i = 1; i < recent.length; i++) intervals.push(recent[i] - recent[i - 1]);
+    const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const bpm = Math.round(MS_PER_MINUTE / avgMs);
+    if (bpm >= MIN_BPM && bpm <= MAX_BPM) {
+      onUpdateTrackBpm(youtubeId, bpm);
+      setBpmInputs(prev => ({ ...prev, [youtubeId]: String(bpm) }));
+    }
+  }, [onUpdateTrackBpm]);
+
+  const handleBpmInputChange = useCallback((youtubeId: string, value: string) => {
+    setBpmInputs(prev => ({ ...prev, [youtubeId]: value }));
+  }, []);
+
+  const handleBpmInputCommit = useCallback((youtubeId: string) => {
+    const raw = bpmInputs[youtubeId];
+    if (raw === undefined) return;
+    const bpm = parseInt(raw, 10);
+    if (!isNaN(bpm) && bpm >= MIN_BPM && bpm <= MAX_BPM) {
+      onUpdateTrackBpm(youtubeId, bpm);
+    }
+  }, [bpmInputs, onUpdateTrackBpm]);
+
   return (
     <div className="neon-border rounded-xl rounded-tl-none overflow-hidden h-full flex flex-col" style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #050508 100%)', minHeight: 120 }}>
       {/* URL Input bar */}
@@ -156,43 +198,69 @@ export default function YouTubePanel({ tracks, onAddTrack, onRemoveTrack, onLoad
             </div>
           ) : (
             <div className="divide-y divide-purple-900/10">
-              {filteredTracks.map(track => {
+              {filteredTracks.filter(t => !!t.youtubeId).map(track => {
                 const isSelected = selectedYoutubeId === track.youtubeId;
+                const ytId = track.youtubeId as string;
+                const bpmDisplay = bpmInputs[ytId] !== undefined ? bpmInputs[ytId] : (track.bpm > 0 ? String(track.bpm) : '');
                 return (
                   <div
                     key={track.id}
                     className={`px-3 py-2 cursor-pointer transition-all hover:bg-purple-900/10 ${isSelected ? 'bg-purple-900/20' : ''}`}
-                    onClick={() => setSelectedYoutubeId(isSelected ? null : (track.youtubeId ?? null))}
+                    onClick={() => setSelectedYoutubeId(isSelected ? null : ytId)}
                   >
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className="text-[9px] text-red-400 font-bold">YT</span>
-                      <span className="text-[10px] text-white truncate">{track.title}</span>
+                    {/* Title row */}
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[9px] text-red-400 font-bold flex-shrink-0">YT</span>
+                      <span className="text-[10px] text-white truncate flex-1">{track.title}</span>
                     </div>
-                    {isSelected && (
-                      <div className="flex gap-1">
-                        <button
-                          onClick={e => { e.stopPropagation(); onLoadToDeck('A', track.youtubeId!, track.title); }}
-                          className="btn-cue px-2 py-0.5 rounded text-[9px] font-bold"
-                        >A</button>
-                        <button
-                          onClick={e => { e.stopPropagation(); onLoadToDeck('B', track.youtubeId!, track.title); }}
-                          className="px-2 py-0.5 rounded text-[9px] font-bold transition-all"
-                          style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#ff2d78' }}
-                        >B</button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            if (isSelected) {
-                              playerRef.current?.stopVideo();
-                              setSelectedYoutubeId(null);
-                              setIsPlaying(false);
-                            }
-                            onRemoveTrack(track.id);
-                          }}
-                          className="px-2 py-0.5 rounded text-[9px] text-gray-600 hover:text-red-400 border border-gray-800/50 transition-colors"
-                        >✕</button>
-                      </div>
-                    )}
+
+                    {/* BPM row — always visible */}
+                    <div className="flex items-center gap-1 mb-1" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleTap(ytId)}
+                        className="px-2 py-0.5 rounded text-[9px] font-bold transition-all flex-shrink-0"
+                        style={{ background: 'rgba(255,165,0,0.12)', border: '1px solid rgba(255,165,0,0.35)', color: '#ffa500' }}
+                        title="Clicca a ritmo per rilevare BPM"
+                      >TAP</button>
+                      <input
+                        type="number"
+                        min={MIN_BPM}
+                        max={MAX_BPM}
+                        value={bpmDisplay}
+                        onChange={e => handleBpmInputChange(ytId, e.target.value)}
+                        onBlur={() => handleBpmInputCommit(ytId)}
+                        onKeyDown={e => e.key === 'Enter' && handleBpmInputCommit(ytId)}
+                        placeholder="BPM"
+                        className="w-14 bg-transparent text-[9px] font-mono outline-none border border-purple-900/30 rounded px-1 py-0.5 focus:border-orange-600/60 transition-colors text-orange-300"
+                        title="Imposta BPM manualmente"
+                      />
+                      <span className="text-[9px] text-gray-600 font-mono">BPM</span>
+                    </div>
+
+                    {/* Action buttons — always visible */}
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => onLoadToDeck('A', ytId, track.title)}
+                        className="px-2 py-0.5 rounded text-[9px] font-bold transition-all"
+                        style={{ background: 'rgba(0,245,255,0.08)', border: '1px solid rgba(0,245,255,0.25)', color: '#00f5ff' }}
+                      >A</button>
+                      <button
+                        onClick={() => onLoadToDeck('B', ytId, track.title)}
+                        className="px-2 py-0.5 rounded text-[9px] font-bold transition-all"
+                        style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#ff2d78' }}
+                      >B</button>
+                      <button
+                        onClick={() => {
+                          if (isSelected) {
+                            playerRef.current?.stopVideo();
+                            setSelectedYoutubeId(null);
+                            setIsPlaying(false);
+                          }
+                          onRemoveTrack(track.id);
+                        }}
+                        className="px-2 py-0.5 rounded text-[9px] text-gray-600 hover:text-red-400 border border-gray-800/50 transition-colors"
+                      >✕</button>
+                    </div>
                   </div>
                 );
               })}
